@@ -1,6 +1,6 @@
 FROM debian:bookworm-slim
 
-ARG MONERO_URL="https://downloads.getmonero.org/gui/monero-gui-linux-x64-v0.18.4.4.tar.bz2"
+ARG MONERO_URL
 ARG MONERO_SHA256
 ARG P2POOL_URL
 ARG P2POOL_SHA256
