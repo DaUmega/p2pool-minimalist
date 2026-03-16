@@ -1,11 +1,20 @@
 #!/usr/bin/env bash
-# manage.sh — build / run / stop / purge the monerod+p2pool container
+# manage.sh — build / run / stop / purge the monerod+p2pool+tari containers
 set -euo pipefail
+
+# ── root check ────────────────────────────────────────────────────────────────
+if [ "$(id -u)" -ne 0 ]; then
+    echo "[!] This script must be run as root (or via sudo)."
+    exit 1
+fi
 
 IMAGE="monerod-p2pool"
 CONTAINER="monerod-p2pool"
+TARI_CONTAINER="tari-node"
 DATA_VOL="monerod-data"
 TOR_VOL="tor-data"
+TARI_VOL="tari-data"
+MINING_NET="mining-net"
 CONF="$(dirname "$0")/setup.conf"
 
 usage() {
@@ -13,15 +22,16 @@ usage() {
 Usage: $0 <command>
 
 Commands:
-  build    Build the Docker image (reads setup.conf; removes old image first)
-  start    Start the container (reads setup.conf)
-  stop     Stop and remove the container
-  restart  stop + start
-  logs     Tail container logs
-  status   Show container status
-  shell    Open a shell in the running container
-  onions   Show Tor hidden-service onion addresses (requires TOR_ENABLED=true)
-  purge    Remove container, image, AND blockchain data volume
+  build        Build the monerod+p2pool Docker image
+  start        Start all containers (tari if TARI_WALLET is set, then monerod+p2pool)
+  stop         Stop all containers
+  restart      stop + start
+  logs         Tail monerod+p2pool container logs
+  logs-tari    Tail Tari base node logs
+  status       Show status of all containers
+  shell        Open a shell in the monerod+p2pool container
+  onions       Show Tor hidden-service onion addresses
+  purge        Remove ALL containers, images, and data volumes (destructive!)
 HELP
     exit 1
 }
@@ -32,20 +42,30 @@ load_conf() {
     source "$CONF"
     [ -n "${WALLET:-}"        ] || { echo "[!] WALLET is not set in setup.conf";        exit 1; }
     [ -n "${MONERO_URL:-}"    ] || { echo "[!] MONERO_URL is not set in setup.conf";    exit 1; }
+    [ -n "${MONERO_SHA256:-}" ] || { echo "[!] MONERO_SHA256 is not set in setup.conf"; exit 1; }
     [ -n "${P2POOL_URL:-}"    ] || { echo "[!] P2POOL_URL is not set in setup.conf";    exit 1; }
     [ -n "${P2POOL_SHA256:-}" ] || { echo "[!] P2POOL_SHA256 is not set in setup.conf"; exit 1; }
     [ -n "${P2POOL_MODE:-}"   ] || { echo "[!] P2POOL_MODE is not set in setup.conf";   exit 1; }
     TOR_ENABLED="${TOR_ENABLED:-false}"
-    # MONERO_SHA256 is optional (but strongly recommended)
-    MONERO_SHA256="${MONERO_SHA256:-}"
+    TARI_WALLET="${TARI_WALLET:-}"
+    if [ -n "$TARI_WALLET" ]; then
+        TARI_IMAGE="${TARI_IMAGE:-quay.io/tarilabs/minotari_node:latest-mainnet}"
+    else
+        TARI_IMAGE=""
+    fi
+}
+
+ensure_network() {
+    docker network inspect "$MINING_NET" >/dev/null 2>&1 || {
+        echo "[*] Creating Docker network: $MINING_NET"
+        docker network create "$MINING_NET"
+    }
 }
 
 cmd_build() {
     load_conf
-    # Always remove the existing image before rebuilding so that a version bump
-    # in setup.conf (new URL / checksum) never silently reuses stale layers.
     if docker image inspect "$IMAGE" >/dev/null 2>&1; then
-        echo "[*] Removing existing image '$IMAGE' to ensure a clean rebuild..."
+        echo "[*] Removing existing image '$IMAGE' for clean rebuild..."
         docker rmi "$IMAGE" 2>/dev/null || true
     fi
     echo "[*] Building image: $IMAGE"
@@ -59,17 +79,57 @@ cmd_build() {
     echo "[*] Build complete."
 }
 
+_ensure_tari() {
+    [ -z "$TARI_IMAGE" ] && return 0  # No merge mining
+    ensure_network
+    docker volume inspect "$TARI_VOL" >/dev/null 2>&1 || docker volume create "$TARI_VOL"
+    if ! docker ps --format '{{.Names}}' | grep -q "^${TARI_CONTAINER}$"; then
+        echo "[*] Starting Tari base node: $TARI_CONTAINER (2GB memory limit)"
+        docker run -d \
+            --name "$TARI_CONTAINER" \
+            --restart unless-stopped \
+            --network "$MINING_NET" \
+            -e TARI_NETWORK=mainnet \
+            -v "${TARI_VOL}:/root/.tari" \
+            -p 18141:18141 \
+            --memory 2g \
+            --memory-swap 2g \
+            -it \
+            "$TARI_IMAGE"
+    fi
+}
+
+_stop_tari() {
+    [ -z "$TARI_IMAGE" ] && return 0
+    echo "[*] Stopping Tari container: $TARI_CONTAINER"
+    docker stop "$TARI_CONTAINER" 2>/dev/null && docker rm "$TARI_CONTAINER" 2>/dev/null || true
+}
+
 cmd_start() {
     load_conf
+    ensure_network
     docker volume inspect "$DATA_VOL" >/dev/null 2>&1 || docker volume create "$DATA_VOL"
     docker volume inspect "$TOR_VOL"  >/dev/null 2>&1 || docker volume create "$TOR_VOL"
+
+    _ensure_tari
+
+    # Determine Tari node hostname on the shared network
+    TARI_NODE_HOST=""
+    if [ -n "$TARI_WALLET" ]; then
+        TARI_NODE_HOST="$TARI_CONTAINER"
+        echo "[*] Tari merge mining enabled → node: $TARI_NODE_HOST"
+    fi
+
     echo "[*] Starting container: $CONTAINER"
     docker run -d \
         --name "$CONTAINER" \
         --restart unless-stopped \
+        --network "$MINING_NET" \
         -e "WALLET=${WALLET}" \
         -e "P2POOL_MODE=${P2POOL_MODE}" \
         -e "TOR_ENABLED=${TOR_ENABLED}" \
+        -e "TARI_WALLET=${TARI_WALLET}" \
+        -e "TARI_NODE_HOST=${TARI_NODE_HOST}" \
         -v "${DATA_VOL}:/var/lib/monero" \
         -v "${TOR_VOL}:/var/lib/tor" \
         -p 18080:18080 \
@@ -83,15 +143,24 @@ cmd_start() {
 }
 
 cmd_stop() {
+    load_conf
     echo "[*] Stopping $CONTAINER..."
     docker stop "$CONTAINER" 2>/dev/null && docker rm "$CONTAINER" 2>/dev/null || true
+    _stop_tari
 }
 
-cmd_logs()    { docker logs --tail 500 -f "$CONTAINER"; }
-cmd_status()  { docker ps -a --filter "name=${CONTAINER}" \
-                    --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"; }
-cmd_shell()   { docker exec -it "$CONTAINER" /bin/bash; }
-cmd_restart() { cmd_stop; cmd_start; }
+cmd_logs()      { docker logs --tail 500 -f "$CONTAINER"; }
+cmd_logs_tari() { docker logs --tail 500 -f "$TARI_CONTAINER"; }
+cmd_shell()     { docker exec -it "$CONTAINER" /bin/bash; }
+cmd_restart()   { cmd_stop; sleep 2; cmd_start; }
+
+cmd_status() {
+    echo "=== All mining containers ==="
+    docker ps -a \
+        --filter "name=${CONTAINER}" \
+        --filter "name=${TARI_CONTAINER}" \
+        --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+}
 
 cmd_onions() {
     load_conf
@@ -100,9 +169,6 @@ cmd_onions() {
         exit 1
     fi
 
-    # Try reading from the named tor-data volume via a throw-away container first
-    # (works even when the main container is stopped).  Fall back to exec if the
-    # volume doesn't exist yet (container has never been started).
     read_onion() {
         local path="$1"
         if docker volume inspect "$TOR_VOL" >/dev/null 2>&1; then
@@ -129,27 +195,34 @@ cmd_onions() {
 }
 
 cmd_purge() {
-    echo "[!] WARNING: Deletes container, image, AND blockchain data (full re-sync required)."
+    load_conf
+    echo "[!] WARNING: Deletes ALL containers, images, and blockchain data."
+    echo "[!]          Full re-sync of both Monero and Tari will be required."
     read -rp "[?] Type 'yes' to confirm: " CONFIRM
     [ "$CONFIRM" = "yes" ] || { echo "[*] Aborted."; exit 0; }
-    docker stop      "$CONTAINER" 2>/dev/null || true
-    docker rm        "$CONTAINER" 2>/dev/null || true
-    docker rmi       "$IMAGE"     2>/dev/null || true
-    docker volume rm "$DATA_VOL"  2>/dev/null || true
-    docker volume rm "$TOR_VOL"   2>/dev/null || true
+    docker stop      "$CONTAINER"      2>/dev/null || true
+    docker rm        "$CONTAINER"      2>/dev/null || true
+    docker stop      "$TARI_CONTAINER" 2>/dev/null || true
+    docker rm        "$TARI_CONTAINER" 2>/dev/null || true
+    docker rmi       "$IMAGE"          2>/dev/null || true
+    docker volume rm "$DATA_VOL"       2>/dev/null || true
+    docker volume rm "$TOR_VOL"        2>/dev/null || true
+    docker volume rm "$TARI_VOL"       2>/dev/null || true
+    docker network rm "$MINING_NET"    2>/dev/null || true
     echo "[*] Purge complete."
 }
 
 [ $# -lt 1 ] && usage
 case "$1" in
-    build)   cmd_build   ;;
-    start)   cmd_start   ;;
-    stop)    cmd_stop    ;;
-    restart) cmd_restart ;;
-    logs)    cmd_logs    ;;
-    status)  cmd_status  ;;
-    shell)   cmd_shell   ;;
-    onions)  cmd_onions  ;;
-    purge)   cmd_purge   ;;
-    *)       usage       ;;
+    build)      cmd_build      ;;
+    start)      cmd_start      ;;
+    stop)       cmd_stop       ;;
+    restart)    cmd_restart    ;;
+    logs)       cmd_logs       ;;
+    logs-tari)  cmd_logs_tari  ;;
+    status)     cmd_status     ;;
+    shell)      cmd_shell      ;;
+    onions)     cmd_onions     ;;
+    purge)      cmd_purge      ;;
+    *)          usage          ;;
 esac

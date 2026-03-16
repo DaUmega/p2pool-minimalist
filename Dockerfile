@@ -8,7 +8,7 @@ ARG P2POOL_SHA256
 # ── deps ──────────────────────────────────────────────────────────────────────
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        curl wget tar bzip2 ca-certificates tor \
+        curl wget tar bzip2 ca-certificates tor netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
 # ── users ─────────────────────────────────────────────────────────────────────
