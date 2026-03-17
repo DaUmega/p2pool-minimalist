@@ -10,6 +10,16 @@ TARI_WALLET=
 # ── Tari gRPC port (optional, default 18142) ────────────────────────────────
 TARI_GRPC_PORT=18142
 
+# ── Tari node resource limits ─────────────────────────────────────────────────
+# RAM cap for the Tari container (Docker --memory syntax: 1g, 1500m, 2g, etc.)
+TARI_MEMORY=2g
+
+# Pruning horizon: number of recent blocks to keep full history for.
+# 0 = archival node (stores everything, very large); >0 = pruned node.
+# 1000 is a safe minimum for merge mining — keeps ~1 day of blocks.
+# Lower = less disk, same RAM. Higher = more disk but can serve more peers.
+TARI_PRUNING_HORIZON=2000
+
 # ── monerod binary URL and SHA-256 checksum ──────────────────────────────────
 # Latest: https://www.getmonero.org/downloads/
 MONERO_URL=https://downloads.getmonero.org/gui/monero-gui-linux-x64-v0.18.4.7.tar.bz2

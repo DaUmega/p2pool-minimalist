@@ -48,6 +48,9 @@ load_conf() {
     [ -n "${P2POOL_MODE:-}"   ] || { echo "[!] P2POOL_MODE is not set in setup.conf";   exit 1; }
     TOR_ENABLED="${TOR_ENABLED:-false}"
     TARI_WALLET="${TARI_WALLET:-}"
+    # Tari resource limits — override in setup.conf
+    TARI_MEMORY="${TARI_MEMORY:-2g}"
+    TARI_PRUNING_HORIZON="${TARI_PRUNING_HORIZON:-1000}"
     if [ -n "$TARI_WALLET" ]; then
         TARI_IMAGE="${TARI_IMAGE:-quay.io/tarilabs/minotari_node:latest-mainnet}"
     else
@@ -84,7 +87,7 @@ _ensure_tari() {
     ensure_network
     docker volume inspect "$TARI_VOL" >/dev/null 2>&1 || docker volume create "$TARI_VOL"
     if ! docker ps --format '{{.Names}}' | grep -q "^${TARI_CONTAINER}$"; then
-        echo "[*] Starting Tari base node: $TARI_CONTAINER (2GB memory limit)"
+        echo "[*] Starting Tari base node: $TARI_CONTAINER (memory: ${TARI_MEMORY}, pruning horizon: ${TARI_PRUNING_HORIZON})"
         docker run -d \
             --name "$TARI_CONTAINER" \
             --restart unless-stopped \
@@ -92,10 +95,15 @@ _ensure_tari() {
             -e TARI_NETWORK=mainnet \
             -v "${TARI_VOL}:/root/.tari" \
             -p 18141:18141 \
-            --memory 2g \
-            --memory-swap 2g \
+            --memory "${TARI_MEMORY}" \
+            --memory-swap "${TARI_MEMORY}" \
             -it \
-            "$TARI_IMAGE"
+            "$TARI_IMAGE" \
+            --non-interactive-mode \
+            --mining-enabled \
+            -p base_node.pruning_horizon="${TARI_PRUNING_HORIZON}" \
+            -p base_node.grpc_enabled=true \
+            -p base_node.grpc_address="/ip4/0.0.0.0/tcp/18142"
     fi
 }
 
