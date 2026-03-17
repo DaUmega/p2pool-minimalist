@@ -101,7 +101,7 @@ _ensure_tari() {
             "$TARI_IMAGE" \
             --non-interactive-mode \
             --mining-enabled \
-            -p base_node.pruning_horizon="${TARI_PRUNING_HORIZON}" \
+            -p storage.pruning_horizon="${TARI_PRUNING_HORIZON}" \
             -p base_node.grpc_enabled=true \
             -p base_node.grpc_address="/ip4/0.0.0.0/tcp/18142"
     fi
