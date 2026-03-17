@@ -1,4 +1,4 @@
-# monerod-p2pool
+# Minimalist setup for p2pool with tari merge mining
 
 Self-hosted Monero full node + P2Pool decentralized mining, containerized with Docker. Optionally enables Tari merge mining and Tor hidden services.
 
