@@ -1,11 +1,26 @@
 # ── Rename to setup.conf ──────────────────────────────────────────────────────
 # Edit these values before running: ./manage.sh build && ./manage.sh start
 
+# ── Binaries download URL and SHA-256 checksum ──────────────────────────────────
+# Latest: https://www.getmonero.org/downloads/
+MONERO_URL=https://downloads.getmonero.org/gui/monero-gui-linux-x64-v0.18.4.7.tar.bz2
+MONERO_SHA256=4573defcf21b0daeea0e9c7213540012c7d1186e829daf991fa8edfc5033dc08
+
+# Latest: https://github.com/SChernykh/p2pool/releases
+P2POOL_URL=https://github.com/SChernykh/p2pool/releases/download/v4.14/p2pool-v4.14-linux-x64.tar.gz
+P2POOL_SHA256=e64f6f774dc35352b8ae4397ccdb92ce0cc935cdfb100eac58d44e49f8796a01
+
 # ── Monero wallet address (required) ─────────────────────────────────────────
 WALLET=4...
 
 # ── Tari wallet address for merge mining (optional) ──────────────────────────
 TARI_WALLET=
+
+# ── Monero node mode (true = pruned) ─────────────────────────────────────────
+MONERO_PRUNED=true
+
+# ── p2pool mode: main | mini | nano ──────────────────────────────────────────
+P2POOL_MODE=mini
 
 # ── Tari gRPC port (optional, default 18142) ────────────────────────────────
 TARI_GRPC_PORT=18142
@@ -19,19 +34,6 @@ TARI_MEMORY=3g
 # 1000 is a safe minimum for merge mining — keeps ~1 day of blocks.
 # Lower = less disk, same RAM. Higher = more disk but can serve more peers.
 TARI_PRUNING_HORIZON=2000
-
-# ── monerod binary URL and SHA-256 checksum ──────────────────────────────────
-# Latest: https://www.getmonero.org/downloads/
-MONERO_URL=https://downloads.getmonero.org/gui/monero-gui-linux-x64-v0.18.4.7.tar.bz2
-MONERO_SHA256=4573defcf21b0daeea0e9c7213540012c7d1186e829daf991fa8edfc5033dc08
-
-# ── p2pool binary URL and SHA-256 checksum ────────────────────────────────────
-# Latest: https://github.com/SChernykh/p2pool/releases
-P2POOL_URL=https://github.com/SChernykh/p2pool/releases/download/v4.14/p2pool-v4.14-linux-x64.tar.gz
-P2POOL_SHA256=e64f6f774dc35352b8ae4397ccdb92ce0cc935cdfb100eac58d44e49f8796a01
-
-# ── p2pool mode: main | mini | nano ──────────────────────────────────────────
-P2POOL_MODE=mini
 
 # ── Tari base node Docker image ───────────────────────────────────────────────
 # Uses the official Tari image. Change tag if you need a specific version.

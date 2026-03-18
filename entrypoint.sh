@@ -95,6 +95,13 @@ EOF
     STRATUM_BIND="127.0.0.1:${STRATUM_PORT}"
 fi
 
+# ── monerod pruning ───────────────────────────────────────────────────────────────────
+MONERO_PRUNED="${MONERO_PRUNED:-true}"
+if [ "$MONERO_PRUNED" != "true" ]; then
+    log "Full archival node mode — removing pruning flags from monerod.conf"
+    sed -i '/^prune-blockchain=/d; /^sync-pruned-blocks=/d' /etc/monero/monerod.conf
+fi
+
 # ── start monerod ─────────────────────────────────────────────────────────────
 log "Starting monerod..."
 su -s /bin/sh monerod -c \

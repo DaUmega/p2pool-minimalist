@@ -134,6 +134,7 @@ cmd_start() {
         --restart unless-stopped \
         --network "$MINING_NET" \
         -e "WALLET=${WALLET}" \
+        -e "MONERO_PRUNED=${MONERO_PRUNED:-true}" \
         -e "P2POOL_MODE=${P2POOL_MODE}" \
         -e "TOR_ENABLED=${TOR_ENABLED}" \
         -e "TARI_WALLET=${TARI_WALLET}" \

@@ -1,24 +1,23 @@
-# Minimalist setup for p2pool with tari merge mining
+# p2pool + Tari merge mining (Docker)
 
-Self-hosted Monero pruned node + P2Pool decentralized mining, containerized with Docker. Optionally enables Tari merge mining and Tor hidden services.
+Self-hosted Monero node + P2Pool, containerized. Optionally enables Tari merge mining and Tor hidden services.
 
-## What's included
+## Includes
 
-- **monerod** — pruned Monero node with restricted RPC (can change to full node in monerod.conf)
-- **p2pool** — decentralized Monero mining (main / mini / nano)
-- **Tari merge mining** — optional; runs a sidecar `minotari_node` container and auto-enables/disables based on node availability
-- **Tor** — optional; routes outbound transactions and exposes monerod RPC+P2P and p2pool stratum as hidden services
+- **monerod** — pruned or full Monero node with restricted RPC
+- **p2pool** — decentralized mining (main / mini / nano)
+- **Tari merge mining** — optional sidecar container; auto-enables/disables on node availability
+- **Tor** — optional; anonymous outbound tx + hidden services for RPC, P2P, and stratum
 
 ## Requirements
 
-- Docker
-- Root / sudo access
-- ~100 GB disk (pruned Monero chain) + ~20 GB (Tari, if enabled)
+- Docker, root/sudo
+- Disk: recommend at least 250 GB with SSD
 
 ## Quick start
 ```bash
 cp setup.conf.example setup.conf
-# Edit setup.conf: set WALLET, update binary URLs/checksums, configure options
+# Set WALLET, update binary URLs/checksums, configure options
 sudo ./manage.sh build
 sudo ./manage.sh start
 ```
@@ -27,30 +26,31 @@ sudo ./manage.sh start
 
 | Variable | Required | Description |
 |---|---|---|
-| `WALLET` | Yes | Monero wallet address for mining rewards |
-| `MONERO_URL` / `MONERO_SHA256` | Yes | monerod binary download URL and SHA-256 |
-| `P2POOL_URL` / `P2POOL_SHA256` | Yes | p2pool binary download URL and SHA-256 |
+| `WALLET` | Yes | Monero wallet address |
+| `MONERO_URL` / `MONERO_SHA256` | Yes | monerod binary URL and SHA-256 |
+| `P2POOL_URL` / `P2POOL_SHA256` | Yes | p2pool binary URL and SHA-256 |
 | `P2POOL_MODE` | Yes | `main`, `mini`, or `nano` |
+| `MONERO_PRUNED` | No | `true` (default) = pruned node, `false` = full archival |
 | `TARI_WALLET` | No | Tari wallet address — enables merge mining if set |
 | `TARI_MEMORY` | No | RAM cap for Tari container (default: `3g`) |
 | `TARI_PRUNING_HORIZON` | No | Blocks to retain in Tari node (default: `2000`) |
 | `TOR_ENABLED` | No | `true` to enable Tor hidden services |
 
-Binary checksums must match the downloaded files. Verify against official release pages:
+Verify checksums against official release pages:
 - Monero: https://www.getmonero.org/downloads/
 - p2pool: https://github.com/SChernykh/p2pool/releases
 
-## manage.sh commands
+## Commands
 ```
-build        Build the monerod+p2pool Docker image
+build        Build the Docker image
 start        Start all containers
 stop         Stop all containers
 restart      stop + start
 logs         Tail monerod+p2pool logs
-logs-tari    Tail Tari base node logs
+logs-tari    Tail Tari logs
 status       Show container status
-shell        Open a shell in the monerod+p2pool container
-onions       Print Tor hidden service addresses (requires TOR_ENABLED=true)
+shell        Shell into the main container
+onions       Print Tor hidden service addresses
 purge        Remove all containers, images, and volumes (destructive)
 ```
 
@@ -60,32 +60,25 @@ purge        Remove all containers, images, and volumes (destructive)
 |---|---|
 | 18080 | monerod P2P |
 | 18089 | monerod restricted RPC |
-| 18083 | monerod ZMQ (internal) |
 | 18084 | monerod anonymous-inbound (Tor) |
 | 3333 | p2pool stratum |
 | 37889 | p2pool P2P (main) |
 | 37888 | p2pool P2P (mini/nano) |
-| 18141 | Tari P2P (if enabled) |
+| 18141 | Tari P2P |
 | 18142 | Tari gRPC (internal) |
 
-## Tor hidden services
+## Tor
 
-When `TOR_ENABLED=true`, three hidden services are created:
-
-- **monerod RPC** — for wallet connections over Tor
-- **monerod P2P** — anonymous peer advertising
-- **p2pool stratum** — for miners connecting over Tor
-
-Retrieve addresses after startup:
+When `TOR_ENABLED=true`, hidden services are created for monerod RPC, monerod P2P, and p2pool stratum. Retrieve addresses after startup:
 ```bash
 sudo ./manage.sh onions
 ```
 
 ## Tari merge mining
 
-Set `TARI_WALLET` in `setup.conf` to enable. A `tari-node` container starts automatically alongside the main container. The entrypoint monitors gRPC connectivity every 30 seconds and restarts p2pool with or without `--merge-mine` as the Tari node goes up or down — no manual intervention required.
+Set `TARI_WALLET` to enable. A `tari-node` container starts automatically. The entrypoint monitors gRPC every 30 seconds and restarts p2pool with or without `--merge-mine` as the node goes up or down.
 
-## Data persistence
+## Volumes
 
 | Volume | Contents |
 |---|---|
@@ -93,4 +86,4 @@ Set `TARI_WALLET` in `setup.conf` to enable. A `tari-node` container starts auto
 | `tor-data` | Tor hidden service keys |
 | `tari-data` | Tari blockchain |
 
-`purge` removes all three. A full re-sync will be required afterward.
+`purge` removes all three and requires a full re-sync.
