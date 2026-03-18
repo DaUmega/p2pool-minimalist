@@ -1,10 +1,10 @@
 # Minimalist setup for p2pool with tari merge mining
 
-Self-hosted Monero full node + P2Pool decentralized mining, containerized with Docker. Optionally enables Tari merge mining and Tor hidden services.
+Self-hosted Monero pruned node + P2Pool decentralized mining, containerized with Docker. Optionally enables Tari merge mining and Tor hidden services.
 
 ## What's included
 
-- **monerod** — pruned Monero full node with restricted RPC
+- **monerod** — pruned Monero node with restricted RPC (can change to full node in monerod.conf)
 - **p2pool** — decentralized Monero mining (main / mini / nano)
 - **Tari merge mining** — optional; runs a sidecar `minotari_node` container and auto-enables/disables based on node availability
 - **Tor** — optional; routes outbound transactions and exposes monerod RPC+P2P and p2pool stratum as hidden services
