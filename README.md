@@ -1,42 +1,38 @@
 # p2pool + Tari merge mining (Docker)
 
-Self-hosted Monero node + P2Pool, containerized. Optionally enables Tari merge mining and Tor hidden services.
-
-## Includes
-
-- **monerod** — pruned or full Monero node with restricted RPC
-- **p2pool** — decentralized mining (main / mini / nano)
-- **Tari merge mining** — optional sidecar container; auto-enables/disables on node availability
-- **Tor** — optional; anonymous outbound tx + hidden services for RPC, P2P, and stratum
+Self-hosted Monero node + P2Pool with optional Tari merge mining and Tor hidden services.
 
 ## Requirements
 
 - Docker, root/sudo
-- Disk: recommend at least 250 GB with SSD
+- 250 GB+ SSD recommended
 
 ## Quick start
 ```bash
 cp setup.conf.example setup.conf
-# Set WALLET, update binary URLs/checksums, configure options
+# Edit: set WALLET, verify binary URLs/checksums, adjust options
 sudo ./manage.sh build
 sudo ./manage.sh start
 ```
 
-## setup.conf
+## Configuration
 
-| Variable | Required | Description |
-|---|---|---|
-| `WALLET` | Yes | Monero wallet address |
-| `MONERO_URL` / `MONERO_SHA256` | Yes | monerod binary URL and SHA-256 |
-| `P2POOL_URL` / `P2POOL_SHA256` | Yes | p2pool binary URL and SHA-256 |
-| `P2POOL_MODE` | Yes | `main`, `mini`, or `nano` |
-| `MONERO_PRUNED` | No | `true` (default) = pruned node, `false` = full archival |
-| `TARI_WALLET` | No | Tari wallet address — enables merge mining if set |
-| `TARI_MEMORY` | No | RAM cap for Tari container (default: `3g`) |
-| `TARI_PRUNING_HORIZON` | No | Blocks to retain in Tari node (default: `2000`) |
-| `TOR_ENABLED` | No | `true` to enable Tor hidden services |
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `WALLET` | Yes | — | Monero wallet address |
+| `MONERO_URL` / `MONERO_SHA256` | Yes | — | monerod binary URL and SHA-256 |
+| `P2POOL_URL` / `P2POOL_SHA256` | Yes | — | p2pool binary URL and SHA-256 |
+| `P2POOL_MODE` | Yes | — | `main`, `mini`, or `nano` |
+| `MONERO_PRUNED` | No | `true` | `false` = full archival node |
+| `TARI_WALLET` | No | — | Tari wallet address — enables merge mining if set |
+| `TARI_IMAGE` | No | `quay.io/tarilabs/minotari_node:latest-mainnet` | Tari Docker image |
+| `TARI_MEMORY` | No | `2g` | RAM cap for Tari container |
+| `TARI_PRUNING_HORIZON` | No | `1000` | Blocks to retain (`0` = full node) |
+| `TARI_GRPC_PORT` | No | `18142` | Tari gRPC port |
+| `TARI_P2P_PORT` | No | `18141` | Tari P2P port |
+| `TOR_ENABLED` | No | `false` | `true` to enable Tor hidden services |
 
-Verify checksums against official release pages:
+Verify checksums against official release pages before updating URLs:
 - Monero: https://www.getmonero.org/downloads/
 - p2pool: https://github.com/SChernykh/p2pool/releases
 
@@ -64,19 +60,19 @@ purge        Remove all containers, images, and volumes (destructive)
 | 3333 | p2pool stratum |
 | 37889 | p2pool P2P (main) |
 | 37888 | p2pool P2P (mini/nano) |
-| 18141 | Tari P2P |
-| 18142 | Tari gRPC (internal) |
+| 18141 | Tari P2P (configurable) |
+| 18142 | Tari gRPC (configurable, internal) |
 
 ## Tor
 
-When `TOR_ENABLED=true`, hidden services are created for monerod RPC, monerod P2P, and p2pool stratum. Retrieve addresses after startup:
+When `TOR_ENABLED=true`, hidden services are created for monerod RPC, monerod P2P, and p2pool stratum:
 ```bash
 sudo ./manage.sh onions
 ```
 
 ## Tari merge mining
 
-Set `TARI_WALLET` to enable. A `tari-node` container starts automatically. The entrypoint monitors gRPC every 30 seconds and restarts p2pool with or without `--merge-mine` as the node goes up or down.
+Set `TARI_WALLET` to enable. A `tari-node` sidecar container starts automatically. The entrypoint monitors gRPC every 30 seconds and restarts p2pool with or without `--merge-mine` as the Tari node comes up or goes down.
 
 ## Volumes
 
@@ -86,4 +82,4 @@ Set `TARI_WALLET` to enable. A `tari-node` container starts automatically. The e
 | `tor-data` | Tor hidden service keys |
 | `tari-data` | Tari blockchain |
 
-`purge` removes all three and requires a full re-sync.
+`purge` removes all three — full re-sync required afterward.

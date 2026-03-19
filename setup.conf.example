@@ -22,7 +22,7 @@ TARI_WALLET=1...        # Tari wallet address — leave blank to disable merge m
 # ── Mode settings ─────────────────────────────────────────────────────────────
 MONERO_PRUNED=true          # true = pruned (~100 GB), false = full node
 P2POOL_MODE=mini            # main | mini | nano
-TARI_MEMORY=3g              # Tari RAM limit — default 2g
+TARI_MEMORY=3g              # Tari RAM limit, default 2g
 TARI_PRUNING_HORIZON=2000   # blocks to retain, 0 = full node, default 1000
 TARI_GRPC_PORT=             # Tari gRPC port (optional, default 18142)
 TARI_P2P_PORT=              # Tari P2P port (optional, default 18141)
