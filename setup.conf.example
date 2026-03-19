@@ -1,43 +1,31 @@
-# ── Rename to setup.conf ──────────────────────────────────────────────────────
-# Edit these values before running: ./manage.sh build && ./manage.sh start
+# Rename to setup.conf and fill in your values, then:
+#   sudo ./manage.sh build && sudo ./manage.sh start
 
-# ── Binaries download URL and SHA-256 checksum ──────────────────────────────────
+# ── Monero binary ─────────────────────────────────────────────────────────────
 # Latest: https://www.getmonero.org/downloads/
 MONERO_URL=https://downloads.getmonero.org/gui/monero-gui-linux-x64-v0.18.4.7.tar.bz2
 MONERO_SHA256=4573defcf21b0daeea0e9c7213540012c7d1186e829daf991fa8edfc5033dc08
 
+# ── p2pool binary ─────────────────────────────────────────────────────────────
 # Latest: https://github.com/SChernykh/p2pool/releases
 P2POOL_URL=https://github.com/SChernykh/p2pool/releases/download/v4.14/p2pool-v4.14-linux-x64.tar.gz
 P2POOL_SHA256=e64f6f774dc35352b8ae4397ccdb92ce0cc935cdfb100eac58d44e49f8796a01
-
-# ── Monero wallet address (required) ─────────────────────────────────────────
-WALLET=4...
-
-# ── Tari wallet address for merge mining (optional) ──────────────────────────
-TARI_WALLET=
-
-# ── Monero node mode (true = pruned) ─────────────────────────────────────────
-MONERO_PRUNED=true
-
-# ── p2pool mode: main | mini | nano ──────────────────────────────────────────
-P2POOL_MODE=mini
-
-# ── Tari gRPC port (optional, default 18142) ────────────────────────────────
-TARI_GRPC_PORT=18142
-
-# ── Tari node resource limits ─────────────────────────────────────────────────
-# RAM cap for the Tari container (Docker --memory syntax: 1g, 1500m, 2g, etc.)
-TARI_MEMORY=3g
-
-# Pruning horizon: number of recent blocks to keep full history for.
-# 0 = archival node (stores everything, very large); >0 = pruned node.
-# 1000 is a safe minimum for merge mining — keeps ~1 day of blocks.
-# Lower = less disk, same RAM. Higher = more disk but can serve more peers.
-TARI_PRUNING_HORIZON=2000
 
 # ── Tari base node Docker image ───────────────────────────────────────────────
 # Uses the official Tari image. Change tag if you need a specific version.
 TARI_IMAGE=quay.io/tarilabs/minotari_node:latest-mainnet
 
-# ── Tor: route monerod outbound tx and expose hidden services ─────────────────
+# ── Wallet addresses ──────────────────────────────────────────────────────────
+WALLET=4...             # Monero wallet address (required)
+TARI_WALLET=1...        # Tari wallet address — leave blank to disable merge mining
+
+# ── Mode settings ─────────────────────────────────────────────────────────────
+MONERO_PRUNED=true          # true = pruned (~50 GB), false = full node
+P2POOL_MODE=mini            # main | mini | nano
+TARI_PRUNING_HORIZON=2000   # blocks to retain, 0 = full node
+TARI_GRPC_PORT=             # Tari gRPC port (optional, default 18142)
+
+# ── Tor ───────────────────────────────────────────────────────────────────────
+# Exposes monerod RPC/P2P and p2pool stratum as hidden services,
+# and routes outbound monerod transactions through Tor.
 TOR_ENABLED=true

@@ -82,29 +82,131 @@ cmd_build() {
     echo "[*] Build complete."
 }
 
+# ── patch Tari config.toml inside the named volume ───────────────────────────
+# Runs a one-shot Alpine container that mounts the tari-data volume, waits for
+# config.toml to exist (the node writes it on first boot), then applies all
+# required overrides via sed.  The node is NOT running during the patch.
+_patch_tari_config() {
+    local horizon="$1"
+    local cfg_path="$2"   # discovered at runtime by _ensure_tari
+    echo "[*] Patching Tari config.toml (pruning_horizon=${horizon}, grpc, bypass_range_proof)..."
+    echo "[*]   config path: ${cfg_path}"
+
+    docker run --rm \
+        --user root \
+        -v "${TARI_VOL}:/var/lib/tari" \
+        --entrypoint sh \
+        "$TARI_IMAGE" -c "
+set -e
+CFG='${cfg_path}'
+
+# ── [base_node.storage] ──────────────────────────────────────────────────────
+# Uncomment and set pruning_horizon
+sed -i 's|^#*[[:space:]]*pruning_horizon[[:space:]]*=.*|pruning_horizon = ${horizon}|' \"\$CFG\"
+
+# ── [base_node] ──────────────────────────────────────────────────────────────
+# Uncomment and enable grpc
+sed -i 's|^#*[[:space:]]*grpc_enabled[[:space:]]*=.*|grpc_enabled = true|' \"\$CFG\"
+
+# Set grpc_address (listen on all interfaces so the mining-net can reach it)
+sed -i 's|^#*[[:space:]]*grpc_address[[:space:]]*=.*|grpc_address = \"/ip4/0.0.0.0/tcp/18142\"|' \"\$CFG\"
+
+# Bypass range proof verification
+sed -i 's|^#*[[:space:]]*bypass_range_proof_verification[[:space:]]*=.*|bypass_range_proof_verification = true|' \"\$CFG\"
+
+echo '[patch] Applied settings:'
+grep -E 'pruning_horizon|grpc_enabled|grpc_address|bypass_range_proof_verification' \"\$CFG\"
+"
+    echo "[*] config.toml patch complete."
+}
+
 _ensure_tari() {
     [ -z "$TARI_IMAGE" ] && return 0  # No merge mining
     ensure_network
     docker volume inspect "$TARI_VOL" >/dev/null 2>&1 || docker volume create "$TARI_VOL"
-    if ! docker ps --format '{{.Names}}' | grep -q "^${TARI_CONTAINER}$"; then
-        echo "[*] Starting Tari base node: $TARI_CONTAINER (memory: ${TARI_MEMORY}, pruning horizon: ${TARI_PRUNING_HORIZON})"
+
+    if docker ps --format '{{.Names}}' | grep -q "^${TARI_CONTAINER}$"; then
+        echo "[*] Tari container already running — skipping start."
+        return 0
+    fi
+
+    # ── Step 1: boot the node briefly so it writes config.toml ───────────────
+    # Only needed on a fresh volume; safe to repeat (patch is idempotent).
+    local cfg_path=""
+
+    # ── pre-flight: check if config.toml already exists in the volume ────────
+    cfg_path=$(docker run --rm \
+        -v "${TARI_VOL}:/var/lib/tari" \
+        --entrypoint sh \
+        "$TARI_IMAGE" -c \
+        "find /var/lib/tari -name 'config.toml' -type f 2>/dev/null | head -1" 2>/dev/null || true)
+
+    if [ -n "$cfg_path" ]; then
+        echo "[*] config.toml already present at: ${cfg_path}"
+    else
+        echo "[*] config.toml not found — booting Tari briefly to generate it..."
+
+        # Clean up any leftover init container from a previous failed attempt
+        docker stop  "${TARI_CONTAINER}-init" 2>/dev/null || true
+        docker rm    "${TARI_CONTAINER}-init" 2>/dev/null || true
+
         docker run -d \
-            --name "$TARI_CONTAINER" \
-            --restart unless-stopped \
+            --name "${TARI_CONTAINER}-init" \
             --network "$MINING_NET" \
             -e TARI_NETWORK=mainnet \
-            -v "${TARI_VOL}:/root/.tari" \
-            -p 18141:18141 \
+            -v "${TARI_VOL}:/var/lib/tari" \
             --memory "${TARI_MEMORY}" \
             --memory-swap "${TARI_MEMORY}" \
-            -it \
             "$TARI_IMAGE" \
-            --non-interactive-mode \
-            --mining-enabled \
-            -p storage.pruning_horizon="${TARI_PRUNING_HORIZON}" \
-            -p base_node.grpc_enabled=true \
-            -p base_node.grpc_address="/ip4/0.0.0.0/tcp/18142"
+            --non-interactive-mode >/dev/null
+
+        echo "[*] Waiting for config.toml to be written (up to 120s)..."
+        local waited=0
+        while [ "$waited" -lt 120 ]; do
+            sleep 5
+            waited=$((waited + 5))
+            cfg_path=$(docker exec "${TARI_CONTAINER}-init" \
+                find /var/lib/tari -name "config.toml" -type f 2>/dev/null | head -1 || true)
+            if [ -n "$cfg_path" ]; then
+                echo "[*] Found config.toml at: ${cfg_path}"
+                break
+            fi
+            echo "    ... still waiting (${waited}s)"
+        done
+
+        echo "[*] Stopping init container."
+        docker stop "${TARI_CONTAINER}-init" 2>/dev/null || true
+        docker rm   "${TARI_CONTAINER}-init" 2>/dev/null || true
+
+        if [ -z "$cfg_path" ]; then
+            echo "[!] config.toml was never written after 120s."
+            echo "[!] Dumping /var/lib/tari tree for diagnosis:"
+            docker run --rm \
+                -v "${TARI_VOL}:/var/lib/tari" \
+                --entrypoint sh \
+                "$TARI_IMAGE" -c "find /var/lib/tari -type f | sort" 2>/dev/null || true
+            exit 1
+        fi
     fi
+
+    # ── Step 2: patch config.toml with our settings ───────────────────────────
+    _patch_tari_config "${TARI_PRUNING_HORIZON}" "${cfg_path}"
+
+    # ── Step 3: start the node for real ──────────────────────────────────────
+    echo "[*] Starting Tari base node: $TARI_CONTAINER (memory: ${TARI_MEMORY}, pruning_horizon: ${TARI_PRUNING_HORIZON})"
+    docker run -d \
+        --name "$TARI_CONTAINER" \
+        --restart unless-stopped \
+        --network "$MINING_NET" \
+        -e TARI_NETWORK=mainnet \
+        -v "${TARI_VOL}:/var/lib/tari" \
+        -p 18141:18141 \
+        --memory "${TARI_MEMORY}" \
+        --memory-swap "${TARI_MEMORY}" \
+        -it \
+        "$TARI_IMAGE" \
+        --non-interactive-mode \
+        --mining-enabled
 }
 
 _stop_tari() {
