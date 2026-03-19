@@ -20,9 +20,9 @@ WALLET=4...             # Monero wallet address (required)
 TARI_WALLET=1...        # Tari wallet address — leave blank to disable merge mining
 
 # ── Mode settings ─────────────────────────────────────────────────────────────
-MONERO_PRUNED=true          # true = pruned (~50 GB), false = full node
+MONERO_PRUNED=true          # true = pruned (~100 GB), false = full node
 P2POOL_MODE=mini            # main | mini | nano
-TARI_PRUNING_HORIZON=2000   # blocks to retain, 0 = full node
+TARI_PRUNING_HORIZON=2000   # blocks to retain, 0 = full node, default 1000
 TARI_GRPC_PORT=             # Tari gRPC port (optional, default 18142)
 
 # ── Tor ───────────────────────────────────────────────────────────────────────
