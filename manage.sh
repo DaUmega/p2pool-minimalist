@@ -105,8 +105,7 @@ _ensure_tari() {
             --mining-enabled \
             -p base_node.storage.pruning_horizon="${TARI_PRUNING_HORIZON}" \
             -p base_node.grpc_enabled=true \
-            -p base_node.grpc_address="/ip4/0.0.0.0/tcp/${TARI_GRPC_PORT}" \
-            -p wallet.bypass_range_proof_verification=true
+            -p base_node.grpc_address="/ip4/0.0.0.0/tcp/${TARI_GRPC_PORT}"
     fi
 }
 
