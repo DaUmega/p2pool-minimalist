@@ -31,6 +31,7 @@ sudo ./manage.sh start
 | `TARI_GRPC_PORT` | No | `18142` | Tari gRPC port |
 | `TARI_P2P_PORT` | No | `18141` | Tari P2P port |
 | `TOR_ENABLED` | No | `false` | `true` to enable Tor hidden services |
+| `LOG_MAX_SIZE` | No | `500M` | Max log file size before rotation (`0` to disable) |
 
 Verify checksums against official release pages before updating URLs:
 - Monero: https://www.getmonero.org/downloads/
@@ -73,6 +74,10 @@ sudo ./manage.sh onions
 ## Tari merge mining
 
 Set `TARI_WALLET` to enable. A `tari-node` sidecar container starts automatically. The entrypoint monitors gRPC every 30 seconds and restarts p2pool with or without `--merge-mine` as the Tari node comes up or goes down.
+
+## Log rotation
+
+Logs are rotated automatically when they reach `LOG_MAX_SIZE` (default `500M`). One compressed archive is kept alongside the live file, then discarded on the next rotation. Set `LOG_MAX_SIZE=0` in `setup.conf` to disable entirely.
 
 ## Volumes
 

@@ -5,10 +5,11 @@ log() { echo "[entrypoint] $*"; }
 
 cleanup() {
     log "Shutting down..."
-    [ -n "${P2POOL_PID:-}" ] && kill "$P2POOL_PID" 2>/dev/null || true
-    [ -n "${MONEROD_PID:-}" ] && kill "$MONEROD_PID" 2>/dev/null || true
-    [ -n "${TOR_PID:-}" ]     && kill "$TOR_PID"     2>/dev/null || true
+    [ -n "${P2POOL_PID:-}" ]       && kill "$P2POOL_PID"       2>/dev/null || true
+    [ -n "${MONEROD_PID:-}" ]      && kill "$MONEROD_PID"      2>/dev/null || true
+    [ -n "${TOR_PID:-}" ]          && kill "$TOR_PID"          2>/dev/null || true
     [ -n "${HEALTH_CHECK_PID:-}" ] && kill "$HEALTH_CHECK_PID" 2>/dev/null || true
+    [ -n "${LOGROTATE_PID:-}" ]    && kill "$LOGROTATE_PID"    2>/dev/null || true
     wait; exit 0
 }
 trap cleanup SIGTERM SIGINT
@@ -34,6 +35,7 @@ else
 fi
 
 TOR_PID=""
+LOGROTATE_PID=""
 STRATUM_BIND="0.0.0.0:${STRATUM_PORT}"
 MONEROD_ONION=""
 HEALTH_CHECK_PID=""
@@ -95,7 +97,7 @@ EOF
     STRATUM_BIND="127.0.0.1:${STRATUM_PORT}"
 fi
 
-# ── monerod pruning ───────────────────────────────────────────────────────────────────
+# ── monerod pruning ───────────────────────────────────────────────────────────
 MONERO_PRUNED="${MONERO_PRUNED:-true}"
 if [ "$MONERO_PRUNED" != "true" ]; then
     log "Full archival node mode — removing pruning flags from monerod.conf"
@@ -120,7 +122,7 @@ case "$P2POOL_MODE" in
     *)    log "Unknown P2POOL_MODE '$P2POOL_MODE'. Use: main | mini | nano"; exit 1 ;;
 esac
 
-# ── initial wait for Tari node gRPC (if merge mining intended) ────────────────────────
+# ── initial wait for Tari node gRPC (if merge mining intended) ────────────────
 TARI_INITIALLY_READY=false
 if [ -n "$MERGE_MINE_FLAG" ]; then
     log "Waiting for Tari node gRPC on ${TARI_NODE_HOST}:${TARI_GRPC_PORT} (initial timeout 60s)..."
@@ -166,7 +168,7 @@ if [ "$TOR_ENABLED" = "true" ]; then
     log "  p2pool stratum onion: ${STRATUM_ONION}:${STRATUM_PORT}"
 fi
 
-# ── background health check: bidirectional merge mining mode switching ──────────────
+# ── background health check: bidirectional merge mining mode switching ─────────
 if [ -n "$TARI_WALLET" ] && [ -n "$TARI_NODE_HOST" ]; then
     log "Starting background Tari health monitor (bidirectional mode switching)..."
     (
@@ -174,25 +176,22 @@ if [ -n "$TARI_WALLET" ] && [ -n "$TARI_NODE_HOST" ]; then
         if [ "$TARI_INITIALLY_READY" = "true" ]; then
             MERGE_MINING_ACTIVE=true
         fi
-        
+
         CONSECUTIVE_FAILURES=0
         CONSECUTIVE_SUCCESSES=0
-        
+
         while true; do
-            sleep 30  # Check every 30 seconds
-            
-            # Check if Tari node is reachable
+            sleep 30
+
             if nc -z "${TARI_NODE_HOST}" "${TARI_GRPC_PORT}" 2>/dev/null; then
                 CONSECUTIVE_FAILURES=0
                 CONSECUTIVE_SUCCESSES=$((CONSECUTIVE_SUCCESSES+1))
-                
-                # If Tari is online and merge mining is NOT active, enable it
+
                 if [ "$MERGE_MINING_ACTIVE" = "false" ] && [ "$CONSECUTIVE_SUCCESSES" -ge 2 ]; then
                     log "[health] Tari node online (${CONSECUTIVE_SUCCESSES}x checks). Enabling merge mining..."
                     kill "$P2POOL_PID" 2>/dev/null || true
                     wait "$P2POOL_PID" 2>/dev/null || true
-                    
-                    # Restart p2pool with merge mining
+
                     su -s /bin/sh p2pool -c \
                         "p2pool \
                             --host 127.0.0.1 \
@@ -212,14 +211,12 @@ if [ -n "$TARI_WALLET" ] && [ -n "$TARI_NODE_HOST" ]; then
             else
                 CONSECUTIVE_SUCCESSES=0
                 CONSECUTIVE_FAILURES=$((CONSECUTIVE_FAILURES+1))
-                
-                # If Tari is offline and merge mining IS active, disable it
+
                 if [ "$MERGE_MINING_ACTIVE" = "true" ] && [ "$CONSECUTIVE_FAILURES" -ge 2 ]; then
                     log "[health] Tari node offline (${CONSECUTIVE_FAILURES}x failures). Reverting to Monero-only mode..."
                     kill "$P2POOL_PID" 2>/dev/null || true
                     wait "$P2POOL_PID" 2>/dev/null || true
-                    
-                    # Restart p2pool WITHOUT merge mining
+
                     su -s /bin/sh p2pool -c \
                         "p2pool \
                             --host 127.0.0.1 \
@@ -239,6 +236,25 @@ if [ -n "$TARI_WALLET" ] && [ -n "$TARI_NODE_HOST" ]; then
         done
     ) &
     HEALTH_CHECK_PID=$!
+fi
+
+# ── log rotation ──────────────────────────────────────────────────────────────
+LOG_MAX_SIZE="${LOG_MAX_SIZE:-500M}"
+if [ "$LOG_MAX_SIZE" != "0" ]; then
+    cat > /etc/logrotate.d/mining <<EOF
+/var/log/p2pool/p2pool.log /var/log/monero/*.log {
+    size ${LOG_MAX_SIZE}
+    rotate 1
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+EOF
+    (while true; do sleep 300; logrotate /etc/logrotate.d/mining 2>/dev/null || true; done) &
+    LOGROTATE_PID=$!
+    log "Log rotation enabled (max size: ${LOG_MAX_SIZE})"
 fi
 
 wait -n "$MONEROD_PID" "$P2POOL_PID" ${TOR_PID:-}

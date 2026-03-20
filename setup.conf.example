@@ -26,6 +26,7 @@ TARI_MEMORY=3g              # Tari RAM limit, default 2g
 TARI_PRUNING_HORIZON=2000   # blocks to retain, 0 = full node, default 1000
 TARI_GRPC_PORT=             # Tari gRPC port (optional, default 18142)
 TARI_P2P_PORT=              # Tari P2P port (optional, default 18141)
+LOG_MAX_SIZE=500M           # Maximum size (100k, 100M, 10G) of each log file before rotation. 0 to disable.
 
 # ── Tor ───────────────────────────────────────────────────────────────────────
 # Exposes monerod RPC/P2P and p2pool stratum as hidden services,
