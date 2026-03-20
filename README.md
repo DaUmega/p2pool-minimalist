@@ -19,12 +19,12 @@ sudo ./manage.sh start
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `WALLET` | Yes | — | Monero wallet address |
-| `MONERO_URL` / `MONERO_SHA256` | Yes | — | monerod binary URL and SHA-256 |
-| `P2POOL_URL` / `P2POOL_SHA256` | Yes | — | p2pool binary URL and SHA-256 |
-| `P2POOL_MODE` | Yes | — | `main`, `mini`, or `nano` |
+| `WALLET` | Yes | - | Monero wallet address |
+| `MONERO_URL` / `MONERO_SHA256` | Yes | - | monerod binary URL and SHA-256 |
+| `P2POOL_URL` / `P2POOL_SHA256` | Yes | - | p2pool binary URL and SHA-256 |
+| `P2POOL_MODE` | Yes | - | `main`, `mini`, or `nano` |
 | `MONERO_PRUNED` | No | `true` | `false` = full archival node |
-| `TARI_WALLET` | No | — | Tari wallet address — enables merge mining if set |
+| `TARI_WALLET` | No | - | Tari wallet address, enables merge mining if set |
 | `TARI_IMAGE` | No | `quay.io/tarilabs/minotari_node:latest-mainnet` | Tari Docker image |
 | `TARI_MEMORY` | No | `2g` | RAM cap for Tari container |
 | `TARI_PRUNING_HORIZON` | No | `1000` | Blocks to retain (`0` = full node) |
@@ -73,7 +73,7 @@ sudo ./manage.sh onions
 
 ## Tari merge mining
 
-Set `TARI_WALLET` to enable. A `tari-node` sidecar container starts automatically. The entrypoint monitors gRPC every 30 seconds and restarts p2pool with or without `--merge-mine` as the Tari node comes up or goes down.
+Set `TARI_WALLET` to enable. A `tari-node` sidecar container starts automatically alongside the main container. p2pool is started with `--merge-mine` and handles connectivity to the Tari node natively, no additional monitoring is needed.
 
 ## Log rotation
 
@@ -87,4 +87,4 @@ Logs are rotated automatically when they reach `LOG_MAX_SIZE` (default `500M`). 
 | `tor-data` | Tor hidden service keys |
 | `tari-data` | Tari blockchain |
 
-`purge` removes all three — full re-sync required afterward.
+`purge` removes all three, full re-sync required afterward.
