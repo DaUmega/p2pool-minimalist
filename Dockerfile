@@ -10,7 +10,7 @@ ARG TARI_SHA256
 # ── deps ──────────────────────────────────────────────────────────────────────
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        curl wget tar bzip2 unzip ca-certificates tor netcat-openbsd expect \
+        curl wget tar bzip2 unzip ca-certificates tor netcat-openbsd expect tmux \
     && rm -rf /var/lib/apt/lists/*
 
 # ── users ─────────────────────────────────────────────────────────────────────
