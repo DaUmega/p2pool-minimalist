@@ -8,9 +8,8 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-IMAGE="monerod-p2pool"
-CONTAINER="monerod-p2pool"
-TARI_CONTAINER="tari-node"
+IMAGE="p2pool-mining"
+CONTAINER="p2pool-mining"
 DATA_VOL="monerod-data"
 TOR_VOL="tor-data"
 TARI_VOL="tari-data"
@@ -22,14 +21,14 @@ usage() {
 Usage: $0 <command>
 
 Commands:
-  build        Build the monerod+p2pool Docker image
-  start        Start all containers (tari if TARI_WALLET is set, then monerod+p2pool)
-  stop         Stop all containers
+  build        Build the monerod+p2pool+tari Docker image
+  start        Start the container
+  stop         Stop the container
   restart      stop + start
   logs         Tail monerod+p2pool container logs
-  logs-tari    Tail Tari base node logs
-  status       Show status of all containers
-  shell        Open a shell in the monerod+p2pool container
+  logs-tari    Tail minotari_node logs (inside the container)
+  status       Show container status
+  shell        Open a shell in the container
   onions       Show Tor hidden-service onion addresses
   purge        Remove ALL containers, images, and data volumes (destructive!)
 HELP
@@ -45,19 +44,13 @@ load_conf() {
     [ -n "${MONERO_SHA256:-}" ] || { echo "[!] MONERO_SHA256 is not set in setup.conf"; exit 1; }
     [ -n "${P2POOL_URL:-}"    ] || { echo "[!] P2POOL_URL is not set in setup.conf";    exit 1; }
     [ -n "${P2POOL_SHA256:-}" ] || { echo "[!] P2POOL_SHA256 is not set in setup.conf"; exit 1; }
+    [ -n "${TARI_URL:-}"      ] || { echo "[!] TARI_URL is not set in setup.conf";      exit 1; }
+    [ -n "${TARI_SHA256:-}"   ] || { echo "[!] TARI_SHA256 is not set in setup.conf";   exit 1; }
     [ -n "${P2POOL_MODE:-}"   ] || { echo "[!] P2POOL_MODE is not set in setup.conf";   exit 1; }
     TOR_ENABLED="${TOR_ENABLED:-false}"
     TARI_WALLET="${TARI_WALLET:-}"
-    # Tari resource limits — override in setup.conf
-    TARI_MEMORY="${TARI_MEMORY:-2g}"
+    TARI_MEMORY="${TARI_MEMORY:-3g}"
     TARI_PRUNING_HORIZON="${TARI_PRUNING_HORIZON:-1000}"
-    TARI_GRPC_PORT="${TARI_GRPC_PORT:-18142}"
-    TARI_P2P_PORT="${TARI_P2P_PORT:-18141}"
-    if [ -n "$TARI_WALLET" ]; then
-        TARI_IMAGE="${TARI_IMAGE:-quay.io/tarilabs/minotari_node:latest-mainnet}"
-    else
-        TARI_IMAGE=""
-    fi
 }
 
 ensure_network() {
@@ -77,42 +70,13 @@ cmd_build() {
     docker build \
         --no-cache \
         --build-arg "MONERO_URL=${MONERO_URL}" \
-        ${MONERO_SHA256:+--build-arg "MONERO_SHA256=${MONERO_SHA256}"} \
+        --build-arg "MONERO_SHA256=${MONERO_SHA256}" \
         --build-arg "P2POOL_URL=${P2POOL_URL}" \
         --build-arg "P2POOL_SHA256=${P2POOL_SHA256}" \
+        --build-arg "TARI_URL=${TARI_URL}" \
+        --build-arg "TARI_SHA256=${TARI_SHA256}" \
         -t "$IMAGE" "$(dirname "$0")"
     echo "[*] Build complete."
-}
-
-_ensure_tari() {
-    [ -z "$TARI_IMAGE" ] && return 0  # No merge mining
-    ensure_network
-    docker volume inspect "$TARI_VOL" >/dev/null 2>&1 || docker volume create "$TARI_VOL"
-    if ! docker ps --format '{{.Names}}' | grep -q "^${TARI_CONTAINER}$"; then
-        echo "[*] Starting Tari base node: $TARI_CONTAINER (memory: ${TARI_MEMORY}, pruning horizon: ${TARI_PRUNING_HORIZON})"
-        docker run -d \
-            --name "$TARI_CONTAINER" \
-            --restart unless-stopped \
-            --network "$MINING_NET" \
-            -e TARI_NETWORK=mainnet \
-            -v "${TARI_VOL}:/var/lib/tari" \
-            -p "${TARI_P2P_PORT}:${TARI_P2P_PORT}" \
-            --memory "${TARI_MEMORY}" \
-            --memory-swap "${TARI_MEMORY}" \
-            -it \
-            "$TARI_IMAGE" \
-            --non-interactive-mode \
-            --mining-enabled \
-            -p base_node.storage.pruning_horizon="${TARI_PRUNING_HORIZON}" \
-            -p base_node.grpc_enabled=true \
-            -p base_node.grpc_address="/ip4/0.0.0.0/tcp/${TARI_GRPC_PORT}"
-    fi
-}
-
-_stop_tari() {
-    [ -z "$TARI_IMAGE" ] && return 0
-    echo "[*] Stopping Tari container: $TARI_CONTAINER"
-    docker stop "$TARI_CONTAINER" 2>/dev/null && docker rm "$TARI_CONTAINER" 2>/dev/null || true
 }
 
 cmd_start() {
@@ -120,15 +84,7 @@ cmd_start() {
     ensure_network
     docker volume inspect "$DATA_VOL" >/dev/null 2>&1 || docker volume create "$DATA_VOL"
     docker volume inspect "$TOR_VOL"  >/dev/null 2>&1 || docker volume create "$TOR_VOL"
-
-    _ensure_tari
-
-    # Determine Tari node hostname on the shared network
-    TARI_NODE_HOST=""
-    if [ -n "$TARI_WALLET" ]; then
-        TARI_NODE_HOST="$TARI_CONTAINER"
-        echo "[*] Tari merge mining enabled → node: $TARI_NODE_HOST"
-    fi
+    docker volume inspect "$TARI_VOL" >/dev/null 2>&1 || docker volume create "$TARI_VOL"
 
     echo "[*] Starting container: $CONTAINER"
     docker run -d \
@@ -140,37 +96,41 @@ cmd_start() {
         -e "P2POOL_MODE=${P2POOL_MODE}" \
         -e "TOR_ENABLED=${TOR_ENABLED}" \
         -e "TARI_WALLET=${TARI_WALLET}" \
-        -e "TARI_NODE_HOST=${TARI_NODE_HOST}" \
-        -e "TARI_GRPC_PORT=${TARI_GRPC_PORT}" \
+        -e "TARI_PRUNING_HORIZON=${TARI_PRUNING_HORIZON}" \
+        ${TARI_WALLET:+--memory "${TARI_MEMORY}"} \
+        ${TARI_WALLET:+--memory-swap "${TARI_MEMORY}"} \
         -v "${DATA_VOL}:/var/lib/monero" \
         -v "${TOR_VOL}:/var/lib/tor" \
+        -v "${TARI_VOL}:/var/lib/tari" \
         -p 18080:18080 \
         -p 18084:18084 \
         -p 18089:18089 \
         -p 3333:3333 \
         -p 37889:37889 \
         -p 37888:37888 \
+        -p 18141:18141 \
+        -p 18142:18142 \
         "$IMAGE"
     echo "[*] Started. Run: $0 logs"
 }
 
 cmd_stop() {
-    load_conf
     echo "[*] Stopping $CONTAINER..."
     docker stop "$CONTAINER" 2>/dev/null && docker rm "$CONTAINER" 2>/dev/null || true
-    _stop_tari
 }
 
-cmd_logs()      { docker logs --tail 500 -f "$CONTAINER"; }
-cmd_logs_tari() { docker logs --tail 500 -f "$TARI_CONTAINER"; }
-cmd_shell()     { docker exec -it "$CONTAINER" /bin/bash; }
-cmd_restart()   { cmd_stop; sleep 2; cmd_start; }
+cmd_logs() { docker logs --tail 500 -f "$CONTAINER"; }
+cmd_logs_tari() {
+    docker exec "$CONTAINER" \
+        tail -n 500 -f /var/log/tari/tari-node.log
+}
+cmd_shell()   { docker exec -it "$CONTAINER" /bin/bash; }
+cmd_restart() { cmd_stop; sleep 2; load_conf; cmd_start; }
 
 cmd_status() {
-    echo "=== All mining containers ==="
+    echo "=== Mining container ==="
     docker ps -a \
         --filter "name=${CONTAINER}" \
-        --filter "name=${TARI_CONTAINER}" \
         --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 }
 
@@ -197,6 +157,7 @@ cmd_onions() {
 
     MONEROD_ONION=$(read_onion /var/lib/tor/monerod/hostname)
     STRATUM_ONION=$(read_onion /var/lib/tor/p2pool-stratum/hostname)
+    TARI_ONION=$(read_onion /var/lib/tor/tari/hostname)
 
     echo "  ── monerod hidden service ──────────────────────────────────────"
     echo "  RPC  (connect your wallet) : ${MONEROD_ONION}:18089"
@@ -204,23 +165,24 @@ cmd_onions() {
     echo ""
     echo "  ── p2pool stratum hidden service ───────────────────────────────"
     echo "  Stratum (miner)            : ${STRATUM_ONION}:3333"
+    echo ""
+    echo "  ── tari P2P hidden service ─────────────────────────────────────"
+    echo "  P2P                        : ${TARI_ONION}:18141"
 }
 
 cmd_purge() {
     load_conf
     echo "[!] WARNING: Deletes ALL containers, images, and blockchain data."
-    echo "[!]          Full re-sync of both Monero and Tari will be required."
+    echo "[!]          Full re-sync of Monero and Tari will be required."
     read -rp "[?] Type 'yes' to confirm: " CONFIRM
     [ "$CONFIRM" = "yes" ] || { echo "[*] Aborted."; exit 0; }
-    docker stop      "$CONTAINER"      2>/dev/null || true
-    docker rm        "$CONTAINER"      2>/dev/null || true
-    docker stop      "$TARI_CONTAINER" 2>/dev/null || true
-    docker rm        "$TARI_CONTAINER" 2>/dev/null || true
-    docker rmi       "$IMAGE"          2>/dev/null || true
-    docker volume rm "$DATA_VOL"       2>/dev/null || true
-    docker volume rm "$TOR_VOL"        2>/dev/null || true
-    docker volume rm "$TARI_VOL"       2>/dev/null || true
-    docker network rm "$MINING_NET"    2>/dev/null || true
+    docker stop      "$CONTAINER" 2>/dev/null || true
+    docker rm        "$CONTAINER" 2>/dev/null || true
+    docker rmi       "$IMAGE"     2>/dev/null || true
+    docker volume rm "$DATA_VOL"  2>/dev/null || true
+    docker volume rm "$TOR_VOL"   2>/dev/null || true
+    docker volume rm "$TARI_VOL"  2>/dev/null || true
+    docker network rm "$MINING_NET" 2>/dev/null || true
     echo "[*] Purge complete."
 }
 
