@@ -10,7 +10,7 @@ ARG TARI_SHA256
 # ── deps ──────────────────────────────────────────────────────────────────────
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        curl wget tar bzip2 unzip ca-certificates tor netcat-openbsd expect tmux \
+        curl wget tar bzip2 unzip ca-certificates tor tmux \
     && rm -rf /var/lib/apt/lists/*
 
 # ── users ─────────────────────────────────────────────────────────────────────
@@ -18,29 +18,26 @@ RUN useradd --system --no-create-home monerod && \
     useradd --system --no-create-home p2pool  && \
     useradd --system --create-home --home-dir /var/lib/tari tari
 
-# ── monerod (with checksum verify) ───────────────────────────────────────────
+# ── monerod ───────────────────────────────────────────────────────────────────
 RUN wget -q -O /tmp/monero.tar.bz2 "$MONERO_URL" && \
     echo "${MONERO_SHA256}  /tmp/monero.tar.bz2" | sha256sum -c - && \
-    mkdir -p /tmp/monero && \
-    tar -xf /tmp/monero.tar.bz2 -C /tmp/monero --strip-components=1 && \
-    install -m 755 /tmp/monero/monerod /usr/local/bin/monerod && \
-    rm -rf /tmp/monero /tmp/monero.tar.bz2
+    tar -xf /tmp/monero.tar.bz2 -C /tmp --strip-components=1 && \
+    install -m 755 /tmp/monerod /usr/local/bin/monerod && \
+    rm -rf /tmp/monero* /tmp/monerod*
 
-# ── p2pool (with checksum verify) ────────────────────────────────────────────
+# ── p2pool ────────────────────────────────────────────────────────────────────
 RUN wget -q -O /tmp/p2pool.tar.gz "$P2POOL_URL" && \
     echo "${P2POOL_SHA256}  /tmp/p2pool.tar.gz" | sha256sum -c - && \
-    mkdir -p /tmp/p2pool && \
-    tar -xf /tmp/p2pool.tar.gz -C /tmp/p2pool --strip-components=1 && \
-    install -m 755 /tmp/p2pool/p2pool /usr/local/bin/p2pool && \
-    rm -rf /tmp/p2pool /tmp/p2pool.tar.gz
+    tar -xf /tmp/p2pool.tar.gz -C /tmp --strip-components=1 && \
+    install -m 755 /tmp/p2pool /usr/local/bin/p2pool && \
+    rm -rf /tmp/p2pool*
 
-# ── minotari_node (with checksum verify) ─────────────────────────────────────
+# ── minotari_node ─────────────────────────────────────────────────────────────
 RUN wget -q -O /tmp/tari.zip "$TARI_URL" && \
     echo "${TARI_SHA256}  /tmp/tari.zip" | sha256sum -c - && \
-    mkdir -p /tmp/tari && \
     unzip -q /tmp/tari.zip -d /tmp/tari && \
     install -m 755 /tmp/tari/minotari_node /usr/local/bin/minotari_node && \
-    rm -rf /tmp/tari /tmp/tari.zip
+    rm -rf /tmp/tari*
 
 # ── directories ───────────────────────────────────────────────────────────────
 RUN mkdir -p \
@@ -57,9 +54,10 @@ RUN chown monerod:monerod /etc/monero/monerod.conf
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# monerod: P2P 18080, RPC 18089, ZMQ 18083, onion-inbound 18084
+# monerod: P2P 18080, onion-inbound 18084, RPC 18089
 # p2pool:  stratum 3333, p2p main 37889, mini/nano 37888
-# tari:    gRPC 18102, P2P 18141, wallet API 18142
-EXPOSE 18080 18084 18089 18083 3333 37889 37888 18102 18141 18142
+# tari:    P2P 18141
+# (internal-only: monerod ZMQ 18083, tari gRPC 18102, tari wallet API 18142)
+EXPOSE 18080 18084 18089 3333 37889 37888 18141
 
 ENTRYPOINT ["/entrypoint.sh"]

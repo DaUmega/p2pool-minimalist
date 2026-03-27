@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# manage.sh — build / run / stop / purge the monerod+p2pool+tari container (interactive mode)
+# manage.sh — build / run / stop / purge the monerod+p2pool+p2pool container
 
 set -euo pipefail
 
@@ -23,10 +23,10 @@ Usage: $0 <command>
 
 Commands:
   build        Build the Docker image
-  start        Start the container (interactive-enabled)
+  start        Start the container
   stop         Stop and remove container
   restart      Stop + start
-  attach       Select and attach to container or a service (tmux)
+  attach       Attach to a service tmux session
   shell        Open shell in container
   status       Show container status
   onions       Show Tor hidden-service onion addresses
@@ -40,19 +40,18 @@ load_conf() {
     # shellcheck disable=SC1090
     source "$CONF"
 
-    [ -n "${WALLET:-}"        ] || { echo "[!] WALLET is not set"; exit 1; }
-    [ -n "${MONERO_URL:-}"    ] || { echo "[!] MONERO_URL is not set"; exit 1; }
+    [ -n "${WALLET:-}"        ] || { echo "[!] WALLET is not set";        exit 1; }
+    [ -n "${MONERO_URL:-}"    ] || { echo "[!] MONERO_URL is not set";    exit 1; }
     [ -n "${MONERO_SHA256:-}" ] || { echo "[!] MONERO_SHA256 is not set"; exit 1; }
-    [ -n "${P2POOL_URL:-}"    ] || { echo "[!] P2POOL_URL is not set"; exit 1; }
+    [ -n "${P2POOL_URL:-}"    ] || { echo "[!] P2POOL_URL is not set";    exit 1; }
     [ -n "${P2POOL_SHA256:-}" ] || { echo "[!] P2POOL_SHA256 is not set"; exit 1; }
-    [ -n "${TARI_URL:-}"      ] || { echo "[!] TARI_URL is not set"; exit 1; }
-    [ -n "${TARI_SHA256:-}"   ] || { echo "[!] TARI_SHA256 is not set"; exit 1; }
-    [ -n "${P2POOL_MODE:-}"   ] || { echo "[!] P2POOL_MODE is not set"; exit 1; }
+    [ -n "${TARI_URL:-}"      ] || { echo "[!] TARI_URL is not set";      exit 1; }
+    [ -n "${TARI_SHA256:-}"   ] || { echo "[!] TARI_SHA256 is not set";   exit 1; }
+    [ -n "${P2POOL_MODE:-}"   ] || { echo "[!] P2POOL_MODE is not set";   exit 1; }
 
     TOR_ENABLED="${TOR_ENABLED:-false}"
     TARI_WALLET="${TARI_WALLET:-}"
-    TARI_MEMORY="${TARI_MEMORY:-3g}"
-    TARI_PRUNING_HORIZON="${TARI_PRUNING_HORIZON:-1000}"
+    TARI_MEMORY="${TARI_MEMORY:-}"
 }
 
 ensure_network() {
@@ -88,18 +87,22 @@ cmd_start() {
     docker volume inspect "$TOR_VOL"  >/dev/null 2>&1 || docker volume create "$TOR_VOL"
     docker volume inspect "$TARI_VOL" >/dev/null 2>&1 || docker volume create "$TARI_VOL"
 
+    # Optional memory limit for Tari
+    MEMORY_FLAG=()
+    [ -n "$TARI_MEMORY" ] && MEMORY_FLAG=(--memory "$TARI_MEMORY")
+
     echo "[*] Starting container: $CONTAINER"
 
     docker run -dit \
         --name "$CONTAINER" \
         --restart unless-stopped \
         --network "$MINING_NET" \
+        "${MEMORY_FLAG[@]+"${MEMORY_FLAG[@]}"}" \
         -e "WALLET=${WALLET}" \
         -e "MONERO_PRUNED=${MONERO_PRUNED:-true}" \
         -e "P2POOL_MODE=${P2POOL_MODE}" \
         -e "TOR_ENABLED=${TOR_ENABLED}" \
         -e "TARI_WALLET=${TARI_WALLET}" \
-        -e "TARI_PRUNING_HORIZON=${TARI_PRUNING_HORIZON}" \
         -v "${DATA_VOL}:/var/lib/monero" \
         -v "${TOR_VOL}:/var/lib/tor" \
         -v "${TARI_VOL}:/var/lib/tari" \
@@ -110,10 +113,9 @@ cmd_start() {
         -p 37889:37889 \
         -p 37888:37888 \
         -p 18141:18141 \
-        -p 18142:18142 \
         "$IMAGE"
 
-    echo "[*] Started. Use sudo $0 attach [option 1] to see logs."
+    echo "[*] Started. Use: sudo $0 attach"
 }
 
 cmd_stop() {
@@ -129,32 +131,18 @@ cmd_restart() {
 }
 
 cmd_attach() {
-    echo "[*] Use Ctrl+P followed immediately by Ctrl+Q to detach from tmux and leave container running."
-    echo "[*] Select attach target:"
-    echo "  [1] Container"
-    echo "  [2] P2Pool (tmux)"
-    echo "  [3] Tari (tmux)"
+    echo "[*] Ctrl+C stops the service but keeps the tmux session alive."
+    echo "[*] Use Ctrl+B then D to detach from tmux."
     echo ""
-
+    echo "  [1] p2pool (tmux)"
+    echo "  [2] tari   (tmux)"
+    echo ""
     read -rp "Enter choice: " CHOICE
 
     case "$CHOICE" in
-        1)
-            echo "[*] Attaching to container..."
-            exec docker attach "$CONTAINER"
-            ;;
-        2)
-            echo "[*] Attaching to p2pool..."
-            exec docker exec -it "$CONTAINER" tmux attach -t p2pool
-            ;;
-        3)
-            echo "[*] Attaching to tari..."
-            exec docker exec -it "$CONTAINER" tmux attach -t tari
-            ;;
-        *)
-            echo "[!] Invalid choice"
-            exit 1
-            ;;
+        1) exec docker exec -it "$CONTAINER" tmux attach -t p2pool ;;
+        2) exec docker exec -it "$CONTAINER" tmux attach -t tari   ;;
+        *) echo "[!] Invalid choice"; exit 1 ;;
     esac
 }
 
@@ -179,30 +167,21 @@ cmd_onions() {
     docker exec "$CONTAINER" sh -c '
         echo "monerod onion:"
         cat /var/lib/tor/monerod/hostname 2>/dev/null || echo "<not ready>"
-
         echo ""
         echo "p2pool onion:"
         cat /var/lib/tor/p2pool-stratum/hostname 2>/dev/null || echo "<not ready>"
-
-        echo ""
-        echo "tari onion:"
-        cat /var/lib/tor/tari/hostname 2>/dev/null || echo "<not ready>"
     '
 }
 
 cmd_purge() {
-    echo "[!] WARNING: This deletes EVERYTHING."
+    echo "[!] WARNING: This deletes EVERYTHING including blockchain data."
     read -rp "Type 'yes' to continue: " CONFIRM
     [ "$CONFIRM" = "yes" ] || exit 0
 
     docker stop "$CONTAINER" 2>/dev/null || true
     docker rm   "$CONTAINER" 2>/dev/null || true
     docker rmi  "$IMAGE"     2>/dev/null || true
-
-    docker volume rm "$DATA_VOL" 2>/dev/null || true
-    docker volume rm "$TOR_VOL"  2>/dev/null || true
-    docker volume rm "$TARI_VOL" 2>/dev/null || true
-
+    docker volume rm "$DATA_VOL" "$TOR_VOL" "$TARI_VOL" 2>/dev/null || true
     docker network rm "$MINING_NET" 2>/dev/null || true
 
     echo "[*] Purge complete."
