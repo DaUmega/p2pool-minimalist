@@ -57,7 +57,7 @@ RUN chmod +x /entrypoint.sh
 # monerod: P2P 18080, onion-inbound 18084, RPC 18089
 # p2pool:  stratum 3333, p2p main 37889, mini/nano 37888
 # tari:    P2P 18141
-# (internal-only: monerod ZMQ 18083, tari gRPC 18102, tari wallet API 18142)
+# (internal-only: monerod ZMQ 18083, tari gRPC 18142)
 EXPOSE 18080 18084 18089 3333 37889 37888 18141
 
 ENTRYPOINT ["/entrypoint.sh"]
