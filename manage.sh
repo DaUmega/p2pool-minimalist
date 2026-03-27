@@ -94,6 +94,7 @@ cmd_start() {
         --restart unless-stopped \
         --network "$MINING_NET" \
         --memory "$TARI_MEMORY" \
+        --memory-swap "$TARI_MEMORY" \
         -e "WALLET=${WALLET}" \
         -e "MONERO_PRUNED=${MONERO_PRUNED:-true}" \
         -e "P2POOL_MODE=${P2POOL_MODE}" \

@@ -90,14 +90,19 @@ tmux start-server
 
 # ── tari (interactive tmux) ───────────────────────────────────────────────────
 if [ -n "$TARI_WALLET" ]; then
-    log "Starting minotari_node (tmux: tari)..."
+    log "Starting minotari_node watchdog (tmux: tari)..."
     tmux new-session -d -s tari \
-        "su -s /bin/sh tari -c '
-            minotari_node \
-                --mining-enabled \
-                -p base_node.grpc_enabled=true \
-                -p base_node.grpc_address=/ip4/127.0.0.1/tcp/18142
-        '"
+        "while true; do
+            echo '[tari] Starting minotari_node...'
+            su -s /bin/sh tari -c '
+                minotari_node \
+                    --mining-enabled \
+                    -p base_node.grpc_enabled=true \
+                    -p base_node.grpc_address=/ip4/127.0.0.1/tcp/18142
+            '
+            echo '[tari] minotari_node exited (OOM or crash), restarting in 5s...'
+            sleep 5
+        done"
 fi
 
 # ── p2pool (interactive tmux) ─────────────────────────────────────────────────
