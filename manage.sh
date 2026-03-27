@@ -136,7 +136,8 @@ cmd_attach() {
     echo "  [2] p2pool (tmux)                                 — detach: Ctrl+P then Q"
     echo "  [3] tari   (tmux)                                 — detach: Ctrl+P then Q"
     echo ""
-    echo "  !! WARNING: DO NOT USE CTRL+C IN OPTIONS 2 OR 3 — IT WILL KILL THE PROCESS !!"
+    echo "  !! WARNING: DO NOT USE CTRL+C — IT WILL KILL THE PROCESS !!"
+    echo "  !! If you do, run: sudo ./manage.sh restart !!"
     echo ""
     read -rp "Enter choice: " CHOICE
 
