@@ -96,7 +96,7 @@ if [ -n "$TARI_WALLET" ]; then
             minotari_node \
                 --mining-enabled \
                 -p base_node.grpc_enabled=true \
-                -p base_node.grpc_address=/ip4/127.0.0.1/tcp/18102
+                -p base_node.grpc_address=/ip4/127.0.0.1/tcp/18142
         '"
 fi
 
@@ -104,7 +104,7 @@ fi
 log "Starting p2pool (tmux: p2pool)..."
 
 MERGE_MINE_ARGS=""
-[ -n "$TARI_WALLET" ] && MERGE_MINE_ARGS="--merge-mine tari://127.0.0.1:18102 ${TARI_WALLET}"
+[ -n "$TARI_WALLET" ] && MERGE_MINE_ARGS="--merge-mine tari://127.0.0.1:18142 ${TARI_WALLET}"
 
 tmux new-session -d -s p2pool \
     "su -s /bin/sh p2pool -c '
