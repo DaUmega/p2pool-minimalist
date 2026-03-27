@@ -88,41 +88,26 @@ until curl -sf http://127.0.0.1:18089/get_height >/dev/null 2>&1; do sleep 3; do
 # ── tmux server ───────────────────────────────────────────────────────────────
 tmux start-server
 
-# ── tari (interactive tmux, Ctrl+C kills node but keeps shell) ────────────────
-# The inner trap ensures Ctrl+C stops minotari_node without killing the
-# restart loop or the tmux session, so you can type commands like 'status'.
+# ── tari (interactive tmux) ───────────────────────────────────────────────────
 if [ -n "$TARI_WALLET" ]; then
     log "Starting minotari_node (tmux: tari)..."
-    tmux new-session -d -s tari
-    tmux send-keys -t tari "
-while true; do
-    trap '' INT
-    su -s /bin/sh tari -c '
-        trap \"exit 0\" INT TERM
-        minotari_node \
-            --mining-enabled \
-            -p base_node.grpc_enabled=true \
-            -p base_node.grpc_address=/ip4/127.0.0.1/tcp/18102
-    '
-    echo \"[tmux] minotari_node exited — type a command or wait 3s to restart...\"
-    sleep 3
-done
-" Enter
+    tmux new-session -d -s tari \
+        "su -s /bin/sh tari -c '
+            minotari_node \
+                --mining-enabled \
+                -p base_node.grpc_enabled=true \
+                -p base_node.grpc_address=/ip4/127.0.0.1/tcp/18102
+        '"
 fi
 
-# ── p2pool (interactive tmux, same Ctrl+C pattern) ────────────────────────────
+# ── p2pool (interactive tmux) ─────────────────────────────────────────────────
 log "Starting p2pool (tmux: p2pool)..."
-tmux new-session -d -s p2pool
 
-# Build the merge-mine argument string (empty when Tari is disabled)
 MERGE_MINE_ARGS=""
 [ -n "$TARI_WALLET" ] && MERGE_MINE_ARGS="--merge-mine tari://127.0.0.1:18102 ${TARI_WALLET}"
 
-tmux send-keys -t p2pool "
-while true; do
-    trap '' INT
-    su -s /bin/sh p2pool -c '
-        trap \"exit 0\" INT TERM
+tmux new-session -d -s p2pool \
+    "su -s /bin/sh p2pool -c '
         p2pool \
             --host 127.0.0.1 \
             --rpc-port 18089 \
@@ -132,11 +117,7 @@ while true; do
             --data-dir /var/lib/p2pool \
             ${MODE_FLAG} \
             ${MERGE_MINE_ARGS}
-    '
-    echo \"[tmux] p2pool exited — restarting in 3s...\"
-    sleep 3
-done
-" Enter
+    '"
 
 # ── keep container alive ──────────────────────────────────────────────────────
 wait

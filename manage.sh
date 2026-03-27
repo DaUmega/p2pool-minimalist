@@ -131,17 +131,19 @@ cmd_restart() {
 }
 
 cmd_attach() {
-    echo "[*] Ctrl+C stops the service but keeps the tmux session alive."
-    echo "[*] Use Ctrl+B then D to detach from tmux."
+    echo "[*] Select attach target:"
+    echo "  [1] Container output (monerod / tor / entrypoint) — detach: Ctrl+P then Q"
+    echo "  [2] p2pool (tmux)                                 — detach: Ctrl+P then Q"
+    echo "  [3] tari   (tmux)                                 — detach: Ctrl+P then Q"
     echo ""
-    echo "  [1] p2pool (tmux)"
-    echo "  [2] tari   (tmux)"
+    echo "  !! WARNING: DO NOT USE CTRL+C IN OPTIONS 2 OR 3 — IT WILL KILL THE PROCESS !!"
     echo ""
     read -rp "Enter choice: " CHOICE
 
     case "$CHOICE" in
-        1) exec docker exec -it "$CONTAINER" tmux attach -t p2pool ;;
-        2) exec docker exec -it "$CONTAINER" tmux attach -t tari   ;;
+        1) exec docker attach "$CONTAINER" ;;
+        2) exec docker exec -it "$CONTAINER" tmux attach -t p2pool ;;
+        3) exec docker exec -it "$CONTAINER" tmux attach -t tari   ;;
         *) echo "[!] Invalid choice"; exit 1 ;;
     esac
 }
