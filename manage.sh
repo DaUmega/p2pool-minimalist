@@ -51,7 +51,7 @@ load_conf() {
 
     TOR_ENABLED="${TOR_ENABLED:-false}"
     TARI_WALLET="${TARI_WALLET:-}"
-    TARI_MEMORY="${TARI_MEMORY:-}"
+    TARI_MEMORY="${TARI_MEMORY:-3g}"
 }
 
 ensure_network() {
@@ -87,17 +87,13 @@ cmd_start() {
     docker volume inspect "$TOR_VOL"  >/dev/null 2>&1 || docker volume create "$TOR_VOL"
     docker volume inspect "$TARI_VOL" >/dev/null 2>&1 || docker volume create "$TARI_VOL"
 
-    # Optional memory limit for Tari
-    MEMORY_FLAG=()
-    [ -n "$TARI_MEMORY" ] && MEMORY_FLAG=(--memory "$TARI_MEMORY")
-
     echo "[*] Starting container: $CONTAINER"
 
     docker run -dit \
         --name "$CONTAINER" \
         --restart unless-stopped \
         --network "$MINING_NET" \
-        "${MEMORY_FLAG[@]+"${MEMORY_FLAG[@]}"}" \
+        --memory "$TARI_MEMORY" \
         -e "WALLET=${WALLET}" \
         -e "MONERO_PRUNED=${MONERO_PRUNED:-true}" \
         -e "P2POOL_MODE=${P2POOL_MODE}" \
