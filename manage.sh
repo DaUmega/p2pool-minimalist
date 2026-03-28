@@ -52,6 +52,7 @@ load_conf() {
     TOR_ENABLED="${TOR_ENABLED:-false}"
     TARI_WALLET="${TARI_WALLET:-}"
     RAM_LIMIT="${RAM_LIMIT:-4g}"
+    LOG_MAX_SIZE="${LOG_MAX_SIZE:-500m}"
 }
 
 ensure_network() {
@@ -89,12 +90,20 @@ cmd_start() {
 
     echo "[*] Starting container: $CONTAINER"
 
+    # LOG_MAX_SIZE=0 disables the log cap entirely
+    if [ "${LOG_MAX_SIZE}" = "0" ]; then
+        LOG_OPTS=()
+    else
+        LOG_OPTS=(--log-opt "max-size=${LOG_MAX_SIZE}" --log-opt "max-file=2")
+    fi
+
     docker run -dit \
         --name "$CONTAINER" \
         --restart unless-stopped \
         --network "$MINING_NET" \
         --memory "$RAM_LIMIT" \
         --memory-swap "$RAM_LIMIT" \
+        "${LOG_OPTS[@]}" \
         -e "WALLET=${WALLET}" \
         -e "MONERO_PRUNED=${MONERO_PRUNED:-true}" \
         -e "P2POOL_MODE=${P2POOL_MODE}" \

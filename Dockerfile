@@ -10,7 +10,7 @@ ARG TARI_SHA256
 # ── deps ──────────────────────────────────────────────────────────────────────
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        curl wget tar bzip2 unzip ca-certificates tor tmux \
+        curl wget tar bzip2 unzip ca-certificates tor tmux logrotate \
     && rm -rf /var/lib/apt/lists/*
 
 # ── users ─────────────────────────────────────────────────────────────────────
@@ -47,6 +47,10 @@ RUN mkdir -p \
     chown -R monerod:monerod /var/lib/monero /var/log/monero /etc/monero && \
     chown -R p2pool:p2pool   /var/lib/p2pool /var/log/p2pool && \
     chown -R tari:tari       /var/lib/tari   /var/log/tari
+
+# ── tor logrotate config ──────────────────────────────────────────────────────
+RUN printf '/var/log/tor/*.log {\n    size 500M\n    rotate 1\n    compress\n    missingok\n    notifempty\n    copytruncate\n}\n' \
+    > /etc/logrotate.d/tor-p2pool
 
 COPY monerod.conf /etc/monero/monerod.conf
 RUN chown monerod:monerod /etc/monero/monerod.conf

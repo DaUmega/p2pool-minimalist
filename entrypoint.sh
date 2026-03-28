@@ -124,5 +124,8 @@ tmux new-session -d -s p2pool \
             ${MERGE_MINE_ARGS}
     '"
 
+# ── logrotate loop ────────────────────────────────────────────────────────────
+while sleep 3600; do logrotate /etc/logrotate.conf; done &
+
 # ── keep container alive ──────────────────────────────────────────────────────
 wait
