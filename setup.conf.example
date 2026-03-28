@@ -23,7 +23,7 @@ TARI_WALLET=            # Tari wallet address — leave blank to disable merge m
 # ── Mode settings ─────────────────────────────────────────────────────────────
 MONERO_PRUNED=true          # true = pruned (~100 GB), false = full node
 P2POOL_MODE=mini            # main | mini | nano
-TARI_MEMORY=                # RAM limit when Tari merge mining is enabled (default 3g)
+RAM_LIMIT=                  # RAM limit when Tari merge mining is enabled (default 3g)
 LOG_MAX_SIZE=               # Maximum log file size (100k, 100M, 10G) before rotation. 500M default, 0 to disable.
 
 # ── Tor ───────────────────────────────────────────────────────────────────────

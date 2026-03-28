@@ -51,7 +51,7 @@ load_conf() {
 
     TOR_ENABLED="${TOR_ENABLED:-false}"
     TARI_WALLET="${TARI_WALLET:-}"
-    TARI_MEMORY="${TARI_MEMORY:-3g}"
+    RAM_LIMIT="${RAM_LIMIT:-4g}"
 }
 
 ensure_network() {
@@ -93,8 +93,8 @@ cmd_start() {
         --name "$CONTAINER" \
         --restart unless-stopped \
         --network "$MINING_NET" \
-        --memory "$TARI_MEMORY" \
-        --memory-swap "$TARI_MEMORY" \
+        --memory "$RAM_LIMIT" \
+        --memory-swap "$RAM_LIMIT" \
         -e "WALLET=${WALLET}" \
         -e "MONERO_PRUNED=${MONERO_PRUNED:-true}" \
         -e "P2POOL_MODE=${P2POOL_MODE}" \
