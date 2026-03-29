@@ -23,7 +23,7 @@ Usage: $0 <command>
 
 Commands:
   build        Build the Docker image
-  start        Start the container
+  start        Start the container (auto-configures firewall)
   stop         Stop and remove container
   restart      Stop + start
   attach       Attach to a service tmux session
@@ -62,6 +62,41 @@ ensure_network() {
     }
 }
 
+# Ensure UFW allows the ports that need inbound external connections,
+# and that Docker's iptables rules aren't being suppressed by UFW's
+# DEFAULT_FORWARD_POLICY. Only acts when UFW is active.
+ensure_firewall() {
+    command -v ufw >/dev/null 2>&1 || return 0
+    ufw status | grep -q "Status: active" || return 0
+
+    # Fix FORWARD policy so Docker's iptables rules aren't dropped
+    local ufw_default=/etc/default/ufw
+    if grep -q 'DEFAULT_FORWARD_POLICY="DROP"' "$ufw_default" 2>/dev/null; then
+        echo "[*] Fixing UFW DEFAULT_FORWARD_POLICY: DROP → ACCEPT"
+        sed -i 's/DEFAULT_FORWARD_POLICY="DROP"/DEFAULT_FORWARD_POLICY="ACCEPT"/' "$ufw_default"
+        ufw reload >/dev/null
+    fi
+
+    # Open ports required for inbound peer connections based on config
+    ufw_allow() { ufw allow "$1/tcp" comment "$2" >/dev/null && echo "[*] UFW: opened $1/tcp ($2)"; }
+
+    # Always: monerod and p2pool P2P
+    ufw status | grep -q "^18080" || ufw_allow 18080 "monerod P2P"
+    ufw status | grep -q "^37889" || ufw_allow 37889 "p2pool P2P main"
+
+    # p2pool mini/nano P2P
+    [ "$P2POOL_MODE" != "main" ] && \
+        { ufw status | grep -q "^37888" || ufw_allow 37888 "p2pool P2P mini/nano"; }
+
+    # Tor onion-inbound
+    [ "$TOR_ENABLED" = "true" ] && \
+        { ufw status | grep -q "^18084" || ufw_allow 18084 "monerod onion-inbound"; }
+
+    # Tari P2P
+    [ -n "$TARI_WALLET" ] && \
+        { ufw status | grep -q "^18141" || ufw_allow 18141 "tari P2P"; }
+}
+
 cmd_build() {
     load_conf
     docker rmi "$IMAGE" 2>/dev/null || true
@@ -83,6 +118,7 @@ cmd_build() {
 cmd_start() {
     load_conf
     ensure_network
+    ensure_firewall
 
     docker volume inspect "$DATA_VOL" >/dev/null 2>&1 || docker volume create "$DATA_VOL"
     docker volume inspect "$TOR_VOL"  >/dev/null 2>&1 || docker volume create "$TOR_VOL"
