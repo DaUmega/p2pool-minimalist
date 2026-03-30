@@ -64,6 +64,33 @@ ensure_network() {
     }
 }
 
+check_firewall() {
+    local ports=(18080 18084 18089 3333 37889 37888)
+    [ -n "${TARI_WALLET:-}" ] && ports+=(18142)
+ 
+    local blocked=()
+    for p in "${ports[@]}"; do
+        { ufw status 2>/dev/null | grep -qE "^$p[/ ]"; } \
+        || { firewall-cmd --query-port="$p/tcp" --quiet 2>/dev/null; } \
+        || { iptables -C INPUT -p tcp --dport "$p" -j ACCEPT 2>/dev/null; } \
+        || blocked+=("$p")
+    done
+ 
+    [ ${#blocked[@]} -eq 0 ] && return 0
+ 
+    echo "[*] Ports not allowed by firewall: ${blocked[*]}"
+    read -rp "[?] Open them now? [y/N] " yn; [[ "$yn" =~ ^[Yy]$ ]] || { echo "[!] Aborted."; exit 1; }
+ 
+    for p in "${blocked[@]}"; do
+        if   command -v ufw          >/dev/null 2>&1 && ufw status          | grep -q "active";  then ufw allow "$p/tcp" >/dev/null && echo "[*] ufw: opened $p/tcp"
+        elif command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state | grep -q "running"; then firewall-cmd --permanent --add-port="$p/tcp" >/dev/null && echo "[*] firewalld: opened $p/tcp"
+        else iptables -I INPUT -p tcp --dport "$p" -j ACCEPT && echo "[*] iptables: opened $p/tcp (not persisted)"
+        fi
+    done
+    command -v ufw          >/dev/null 2>&1 && ufw status          | grep -q "active"  && ufw reload          >/dev/null
+    command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state | grep -q "running" && firewall-cmd --reload >/dev/null
+}
+
 cmd_build() {
     load_conf
     if docker image inspect "$IMAGE" >/dev/null 2>&1; then
@@ -106,6 +133,7 @@ _ensure_tari() {
 cmd_start() {
     load_conf
     ensure_network
+    check_firewall
     docker volume inspect "$DATA_VOL" >/dev/null 2>&1 || docker volume create "$DATA_VOL"
     docker volume inspect "$TOR_VOL"  >/dev/null 2>&1 || docker volume create "$TOR_VOL"
 
