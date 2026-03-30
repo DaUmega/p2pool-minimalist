@@ -143,6 +143,7 @@ cmd_start() {
         -p 37889:37889 \
         -p 37888:37888 \
         "$IMAGE"
+    echo "[!] For first startup, you must run $0 logs-tari and enter 'y' twice to initialize!"
     echo "[*] Started. Run: $0 logs"
 }
 
