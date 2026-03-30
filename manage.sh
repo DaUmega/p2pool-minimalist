@@ -80,7 +80,7 @@ check_firewall() {
  
     echo "[*] Ports not open in firewall: ${blocked[*]}"
     read -rp "[?] Open them now? [y/N] " yn
-    if [[ ! "$yn" =~ ^[Yy]$ ]]; then echo "[!] Skipping firewall changes."; return 0; fi
+    if [[ ! "$yn" =~ ^[Yy]$ ]]; then echo "[!] Aborted, open ports manually before starting."; exit 1; fi
  
     for p in "${blocked[@]}"; do
         if   command -v ufw          >/dev/null 2>&1 && ufw status           2>/dev/null | grep -q "active";  then ufw allow "$p/tcp" >/dev/null;                                  echo "[*] ufw: opened $p/tcp"
