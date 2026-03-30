@@ -44,8 +44,8 @@ RUN chown monerod:monerod /etc/monero/monerod.conf
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# monerod: P2P 18080, RPC 18089, ZMQ 18083, onion-inbound 18084
+# monerod: P2P 18080, RPC 18089, ZMQ 18083 (internal), onion-inbound 18084
 # p2pool:  stratum 3333, p2p main 37889, mini/nano 37888
-EXPOSE 18080 18084 18089 18083 3333 37889 37888
+EXPOSE 18080 18084 18089 3333 37889 37888
 
 ENTRYPOINT ["/entrypoint.sh"]

@@ -47,12 +47,9 @@ load_conf() {
     [ -n "${P2POOL_SHA256:-}" ] || { echo "[!] P2POOL_SHA256 is not set in setup.conf"; exit 1; }
     [ -n "${P2POOL_MODE:-}"   ] || { echo "[!] P2POOL_MODE is not set in setup.conf";   exit 1; }
     TOR_ENABLED="${TOR_ENABLED:-false}"
+    LOG_MAX_SIZE="${LOG_MAX_SIZE:-500m}"
     TARI_WALLET="${TARI_WALLET:-}"
-    # Tari resource limits — override in setup.conf
-    TARI_MEMORY="${TARI_MEMORY:-2g}"
-    TARI_PRUNING_HORIZON="${TARI_PRUNING_HORIZON:-1000}"
-    TARI_GRPC_PORT="${TARI_GRPC_PORT:-18142}"
-    TARI_P2P_PORT="${TARI_P2P_PORT:-18141}"
+    TARI_MEMORY="${TARI_MEMORY:-3g}"
     if [ -n "$TARI_WALLET" ]; then
         TARI_IMAGE="${TARI_IMAGE:-quay.io/tarilabs/minotari_node:latest-mainnet}"
     else
@@ -89,23 +86,18 @@ _ensure_tari() {
     ensure_network
     docker volume inspect "$TARI_VOL" >/dev/null 2>&1 || docker volume create "$TARI_VOL"
     if ! docker ps --format '{{.Names}}' | grep -q "^${TARI_CONTAINER}$"; then
-        echo "[*] Starting Tari base node: $TARI_CONTAINER (memory: ${TARI_MEMORY}, pruning horizon: ${TARI_PRUNING_HORIZON})"
+        echo "[*] Starting Tari base node: $TARI_CONTAINER (memory: ${TARI_MEMORY})"
         docker run -d \
             --name "$TARI_CONTAINER" \
             --restart unless-stopped \
             --network "$MINING_NET" \
-            -e TARI_NETWORK=mainnet \
-            -v "${TARI_VOL}:/var/lib/tari" \
-            -p "${TARI_P2P_PORT}:${TARI_P2P_PORT}" \
             --memory "${TARI_MEMORY}" \
             --memory-swap "${TARI_MEMORY}" \
             -it \
             "$TARI_IMAGE" \
-            --non-interactive-mode \
             --mining-enabled \
-            -p base_node.storage.pruning_horizon="${TARI_PRUNING_HORIZON}" \
             -p base_node.grpc_enabled=true \
-            -p base_node.grpc_address="/ip4/0.0.0.0/tcp/${TARI_GRPC_PORT}"
+            -p base_node.grpc_address="/ip4/0.0.0.0/tcp/18142"
     fi
 }
 
@@ -141,7 +133,7 @@ cmd_start() {
         -e "TOR_ENABLED=${TOR_ENABLED}" \
         -e "TARI_WALLET=${TARI_WALLET}" \
         -e "TARI_NODE_HOST=${TARI_NODE_HOST}" \
-        -e "TARI_GRPC_PORT=${TARI_GRPC_PORT}" \
+        -e "LOG_MAX_SIZE=${LOG_MAX_SIZE}" \
         -v "${DATA_VOL}:/var/lib/monero" \
         -v "${TOR_VOL}:/var/lib/tor" \
         -p 18080:18080 \
@@ -162,7 +154,13 @@ cmd_stop() {
 }
 
 cmd_logs()      { docker logs --tail 500 -f "$CONTAINER"; }
-cmd_logs_tari() { docker logs --tail 500 -f "$TARI_CONTAINER"; }
+cmd_logs_tari() { 
+    echo "[*] Attaching to Tari node console — detach with Ctrl+P then Q"
+    echo "  !! WARNING: DO NOT USE CTRL+C — IT WILL KILL THE PROCESS !!"
+    echo "  !! If you do, run: sudo $0 restart !!"
+    echo ""
+    exec docker attach "$TARI_CONTAINER"
+ }
 cmd_shell()     { docker exec -it "$CONTAINER" /bin/bash; }
 cmd_restart()   { cmd_stop; sleep 2; cmd_start; }
 

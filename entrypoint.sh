@@ -24,11 +24,10 @@ MONEROD_ONION_PORT=18084
 # TARI_WALLET and TARI_NODE_HOST are optional; merge mining is skipped if unset.
 TARI_WALLET="${TARI_WALLET:-}"
 TARI_NODE_HOST="${TARI_NODE_HOST:-}"
-TARI_GRPC_PORT="${TARI_GRPC_PORT:-18142}"
 MERGE_MINE_FLAG=""
 if [ -n "$TARI_WALLET" ] && [ -n "$TARI_NODE_HOST" ]; then
-    log "Tari merge mining enabled → tari://${TARI_NODE_HOST}:${TARI_GRPC_PORT}"
-    MERGE_MINE_FLAG="--merge-mine tari://${TARI_NODE_HOST}:${TARI_GRPC_PORT} ${TARI_WALLET}"
+    log "Tari merge mining enabled → tari://${TARI_NODE_HOST}:18142"
+    MERGE_MINE_FLAG="--merge-mine tari://${TARI_NODE_HOST}:18142 ${TARI_WALLET}"
 else
     log "Tari merge mining disabled (TARI_WALLET or TARI_NODE_HOST not set)"
 fi
@@ -54,9 +53,11 @@ if [ "$TOR_ENABLED" = "true" ]; then
     TORRC=/etc/tor/torrc-p2pool
     cat > "$TORRC" <<EOF
 User debian-tor
-SocksPort 9050
-Log warn stderr
 DataDirectory /var/lib/tor
+SocksPort 9050
+ControlPort 9051
+CookieAuthentication 1
+CookieAuthFile /var/lib/tor/control_auth_cookie
 
 HiddenServiceDir ${MONEROD_HS_DIR}
 HiddenServicePort 18089 127.0.0.1:18089
@@ -136,7 +137,7 @@ P2POOL_PID=$!
 
 log "All services running. monerod=$MONEROD_PID p2pool=$P2POOL_PID${TOR_PID:+ tor=$TOR_PID}"
 if [ -n "$MERGE_MINE_FLAG" ]; then
-    log "  Tari merge mining → tari://${TARI_NODE_HOST}:${TARI_GRPC_PORT}"
+    log "  Tari merge mining → tari://${TARI_NODE_HOST}:18142"
 fi
 if [ "$TOR_ENABLED" = "true" ]; then
     log "  monerod onion  RPC  : ${MONEROD_ONION}:18089"
@@ -158,7 +159,7 @@ if [ "$LOG_MAX_SIZE" != "0" ]; then
     copytruncate
 }
 EOF
-    (while true; do sleep 300; logrotate /etc/logrotate.d/mining 2>/dev/null || true; done) &
+    (while true; do sleep 3600; logrotate /etc/logrotate.d/mining 2>/dev/null || true; done) &
     LOGROTATE_PID=$!
     log "Log rotation enabled (max size: ${LOG_MAX_SIZE})"
 fi
