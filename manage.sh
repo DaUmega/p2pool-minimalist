@@ -71,24 +71,25 @@ check_firewall() {
     local blocked=()
     for p in "${ports[@]}"; do
         { ufw status 2>/dev/null | grep -qE "^$p[/ ]"; } \
-        || { firewall-cmd --query-port="$p/tcp" --quiet 2>/dev/null; } \
-        || { iptables -C INPUT -p tcp --dport "$p" -j ACCEPT 2>/dev/null; } \
+        || firewall-cmd --query-port="$p/tcp" --quiet 2>/dev/null \
+        || iptables -C INPUT -p tcp --dport "$p" -j ACCEPT 2>/dev/null \
         || blocked+=("$p")
     done
  
     [ ${#blocked[@]} -eq 0 ] && return 0
  
-    echo "[*] Ports not allowed by firewall: ${blocked[*]}"
-    read -rp "[?] Open them now? [y/N] " yn; [[ "$yn" =~ ^[Yy]$ ]] || { echo "[!] Aborted."; exit 1; }
+    echo "[*] Ports not open in firewall: ${blocked[*]}"
+    read -rp "[?] Open them now? [y/N] " yn
+    if [[ ! "$yn" =~ ^[Yy]$ ]]; then echo "[!] Skipping firewall changes."; return 0; fi
  
     for p in "${blocked[@]}"; do
-        if   command -v ufw          >/dev/null 2>&1 && ufw status          | grep -q "active";  then ufw allow "$p/tcp" >/dev/null && echo "[*] ufw: opened $p/tcp"
-        elif command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state | grep -q "running"; then firewall-cmd --permanent --add-port="$p/tcp" >/dev/null && echo "[*] firewalld: opened $p/tcp"
-        else iptables -I INPUT -p tcp --dport "$p" -j ACCEPT && echo "[*] iptables: opened $p/tcp (not persisted)"
+        if   command -v ufw          >/dev/null 2>&1 && ufw status           2>/dev/null | grep -q "active";  then ufw allow "$p/tcp" >/dev/null;                                  echo "[*] ufw: opened $p/tcp"
+        elif command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state 2>/dev/null | grep -q "running"; then firewall-cmd --permanent --add-port="$p/tcp" >/dev/null;         echo "[*] firewalld: opened $p/tcp"
+        else iptables -I INPUT -p tcp --dport "$p" -j ACCEPT;                                                                                                                       echo "[*] iptables: opened $p/tcp (not persisted)"
         fi
     done
-    command -v ufw          >/dev/null 2>&1 && ufw status          | grep -q "active"  && ufw reload          >/dev/null
-    command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state | grep -q "running" && firewall-cmd --reload >/dev/null
+    command -v ufw          >/dev/null 2>&1 && ufw status           2>/dev/null | grep -q "active"  && ufw reload          >/dev/null || true
+    command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state 2>/dev/null | grep -q "running" && firewall-cmd --reload >/dev/null || true
 }
 
 cmd_build() {
