@@ -157,13 +157,7 @@ cmd_stop() {
 }
 
 cmd_logs()      { docker logs --tail 500 -f "$CONTAINER"; }
-cmd_logs_tari() { 
-    echo "[*] Attaching to Tari node console — detach with Ctrl+P then Q"
-    echo "  !! WARNING: DO NOT USE CTRL+C — IT WILL KILL THE PROCESS !!"
-    echo "  !! If you do, run: sudo $0 restart !!"
-    echo ""
-    exec docker attach "$TARI_CONTAINER"
- }
+cmd_logs_tari() { exec docker attach "$TARI_CONTAINER"; }
 cmd_shell()     { docker exec -it "$CONTAINER" /bin/bash; }
 cmd_restart()   { cmd_stop; sleep 2; cmd_start; }
 
