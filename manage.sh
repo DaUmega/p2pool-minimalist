@@ -121,7 +121,7 @@ _ensure_tari() {
             --network "$MINING_NET" \
             --memory "${TARI_MEMORY}" \
             --memory-swap "${TARI_MEMORY}" \
-            -v "${TARI_VOL}:/root/.tari" \
+            -v "${TARI_VOL}:/var/tari" \
             -p 18142:18142 \
             -it \
             "$TARI_IMAGE" \
