@@ -69,30 +69,26 @@ ensure_firewall() {
     command -v ufw >/dev/null 2>&1 || return 0
     ufw status | grep -q "Status: active" || return 0
 
-    # Fix FORWARD policy so Docker's iptables rules aren't dropped
     local ufw_default=/etc/default/ufw
     if grep -q 'DEFAULT_FORWARD_POLICY="DROP"' "$ufw_default" 2>/dev/null; then
         echo "[*] Fixing UFW DEFAULT_FORWARD_POLICY: DROP → ACCEPT"
         sed -i 's/DEFAULT_FORWARD_POLICY="DROP"/DEFAULT_FORWARD_POLICY="ACCEPT"/' "$ufw_default"
         ufw reload >/dev/null
+        echo "[*] Restarting Docker to reinstall iptables rules..."
+        systemctl restart docker
     fi
 
-    # Open ports required for inbound peer connections based on config
     ufw_allow() { ufw allow "$1/tcp" comment "$2" >/dev/null && echo "[*] UFW: opened $1/tcp ($2)"; }
 
-    # Always: monerod and p2pool P2P
     ufw status | grep -q "^18080" || ufw_allow 18080 "monerod P2P"
     ufw status | grep -q "^37889" || ufw_allow 37889 "p2pool P2P main"
 
-    # p2pool mini/nano P2P
     [ "$P2POOL_MODE" != "main" ] && \
         { ufw status | grep -q "^37888" || ufw_allow 37888 "p2pool P2P mini/nano"; }
 
-    # Tor onion-inbound
     [ "$TOR_ENABLED" = "true" ] && \
         { ufw status | grep -q "^18084" || ufw_allow 18084 "monerod onion-inbound"; }
 
-    # Tari P2P
     [ -n "$TARI_WALLET" ] && \
         { ufw status | grep -q "^18141" || ufw_allow 18141 "tari P2P"; }
 }
