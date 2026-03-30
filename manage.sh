@@ -103,12 +103,6 @@ _ensure_tari() {
     fi
 }
 
-_stop_tari() {
-    [ -z "$TARI_IMAGE" ] && return 0
-    echo "[*] Stopping Tari container: $TARI_CONTAINER"
-    docker stop "$TARI_CONTAINER" 2>/dev/null && docker rm "$TARI_CONTAINER" 2>/dev/null || true
-}
-
 cmd_start() {
     load_conf
     ensure_network
@@ -153,7 +147,10 @@ cmd_stop() {
     load_conf
     echo "[*] Stopping $CONTAINER..."
     docker stop "$CONTAINER" 2>/dev/null && docker rm "$CONTAINER" 2>/dev/null || true
-    _stop_tari
+    if [ -n "$TARI_IMAGE" ]; then
+        echo "[*] Stopping Tari container: $TARI_CONTAINER"
+        docker stop "$TARI_CONTAINER" 2>/dev/null && docker rm "$TARI_CONTAINER" 2>/dev/null || true
+    fi
 }
 
 cmd_logs()      { docker logs --tail 500 -f "$CONTAINER"; }
