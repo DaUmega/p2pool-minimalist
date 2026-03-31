@@ -183,7 +183,7 @@ cmd_stop() {
 }
 
 cmd_logs()      { docker logs --tail 500 -f "$CONTAINER"; }
-cmd_logs_tari() { exec docker attach "$TARI_CONTAINER"; }
+cmd_logs_tari() { echo "!! Use Ctrl + P then Q to exit !!"; exec docker attach "$TARI_CONTAINER"; }
 cmd_shell()     { docker exec -it "$CONTAINER" /bin/bash; }
 cmd_restart()   { cmd_stop; sleep 2; cmd_start; }
 
